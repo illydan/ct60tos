@@ -120,19 +120,6 @@ void RADEONWaitForIdleMMIO(struct radeonfb_info *rinfo)
 	}
 }
 
-#if 0
-
-/* This callback is required for multiheader cards using XAA */
-void RADEONRestoreAccelStateMMIO(struct radeonfb_info *rinfo)
-{
-//	unsigned long pitch64 = ((info->var.xres * (rinfo->bpp / 8) + 0x3f)) >> 6;
-	OUTREG(DEFAULT_OFFSET, (((INREG(DISPLAY_BASE_ADDR) + rinfo->fb_local_base) >> 10) | (rinfo->pitch << 22)));
-	/* FIXME: May need to restore other things, like BKGD_CLK FG_CLK... */
-	RADEONWaitForIdleMMIO(rinfo);
-}
-
-#endif
-
 /* Setup for XAA SolidFill */
 void RADEONSetupForSolidFillMMIO(struct radeonfb_info *rinfo,
      int color, int rop, unsigned int planemask)
@@ -772,83 +759,6 @@ void RADEONDisableClippingMMIO(struct radeonfb_info *rinfo)
 	if(rinfo->trans_color != -1)
 		RADEONSetTransparencyMMIO(rinfo, rinfo->trans_color);
 }
-
-#if 0
-
-/* Change surfaces
-   The idea here is to only set up front buffer as tiled, and back/depth buffer when needed.
-   Everything else is left as untiled. This means we need to use eplicit src/dst pitch control
-   when blitting, based on the src/target address, and can no longer use a default offset.
-   But OTOH we don't need to dynamically change surfaces (for xv for instance), and some
-   ugly offset / fb reservation (cursor) is gone. And as a bonus, everything actually works...
-   All surface addresses are relative to MC_FB_LOCATION
- */
-void RADEONChangeSurfaces(struct radeonfb_info *rinfo)
-{
-	struct fb_info *info = rinfo->info;
-	int cpp = rinfo->bpp >> 3;
-	/* depth/front/back pitch must be identical (and the same as displayWidth) */
-	int width_bytes = info->var.xres_virtual * cpp;
-	int bufferSize = (((((info->var.yres_virtual + 15) & ~15) * width_bytes) + RADEON_BUFFER_ALIGN) & ~RADEON_BUFFER_ALIGN);
-	unsigned int depth_pattern, color_pattern, swap_pattern, surf_info;
-	if(rinfo->big_endian)
-	{
-		switch(rinfo->bpp)
-		{
-			case 16:
-				swap_pattern = SURF_AP0_SWP_16BPP | SURF_AP1_SWP_16BPP;
-				break;
-	    case 32:
-				swap_pattern = SURF_AP0_SWP_32BPP | SURF_AP1_SWP_32BPP;
-				break;
-			default:
-				swap_pattern = 0;
-		}
-	}
-	else
-		swap_pattern = 0;
-	if(rinfo->family < CHIP_FAMILY_R200)
-	{
-		color_pattern = SURF_TILE_COLOR_MACRO;
-		if(cpp == 2)
-			depth_pattern = SURF_TILE_DEPTH_16BPP;
-		else
-			depth_pattern = SURF_TILE_DEPTH_32BPP;
-	}
-	else if(rinfo->family >= CHIP_FAMILY_R300)
-	{
-		color_pattern = R300_SURF_TILE_COLOR_MACRO;
-		if(cpp == 2)
-			depth_pattern = R300_SURF_TILE_COLOR_MACRO;
-		else
-			depth_pattern = R300_SURF_TILE_COLOR_MACRO | R300_SURF_TILE_DEPTH_32BPP;
-	}
-	else
-	{
-		color_pattern = R200_SURF_TILE_COLOR_MACRO;
-		if(cpp == 2)
-			depth_pattern = R200_SURF_TILE_DEPTH_16BPP;
-		else
-			depth_pattern = R200_SURF_TILE_DEPTH_32BPP;
-	}   
-	/* we don't need anything like WaitForFifo, no? */
-#ifdef RADEON_TILING
-	if(rinfo->tilingEnabled)
-	{
-		if(rinfo->family >= CHIP_FAMILY_R300)
-			surf_info = swap_pattern | (width_bytes / 8) | color_pattern;
-		else
-			surf_info = swap_pattern | (width_bytes / 16) | color_pattern;
-	}
-	else
-#endif
-		surf_info = 0;
-	OUTREG(SURFACE0_INFO, surf_info);
-	OUTREG(SURFACE0_LOWER_BOUND, 0);
-	OUTREG(SURFACE0_UPPER_BOUND, bufferSize - 1);
-}
-
-#endif
 
 /* The FIFO has 64 slots.  This routines waits until at least `entries'
  * of these slots are empty.

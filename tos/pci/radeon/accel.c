@@ -1434,18 +1434,8 @@ long CDECL c_fill_area(Virtual *vwk, long x, long y, long w, long h, short *patt
 			rop = 3;
 			break;
 		case 2:  /* transparent (col AND obj) OR (old AND NOT obj) */
-#if 1
 			rop = 3;
 			background = -1;
-#else
-			if(interior < 2) /* fill color */
-				rop = 3;
-			else
-			{
-				rop = 7;
-				background = -1;				
-			}
-#endif
 			break;
 		case 3:  /* XOR         (obj XOR old)  */
 			rop = 6;  
@@ -1458,12 +1448,8 @@ long CDECL c_fill_area(Virtual *vwk, long x, long y, long w, long h, short *patt
 			background = -1;
 			break;
 		case 4:  /* reverse transparent (old AND obj) OR (col AND not obj) */
-#if 1
 			rop = 12;
 			background = -1;
-#else
-			rop = 13;
-#endif
 			if(interior < 2)
 				return(1);
 			break;
@@ -1877,34 +1863,6 @@ long CDECL c_blit_area(Virtual *vwk, MFDB *src, long src_x, long src_y,
 #endif	
 		return(1);
 	}
-#if 0
-  // slower than the CPU or DMA in 16M colors where src must be aligned to 32 bits
-	else if(!from_screen && to_screen
-	 && (bpp < 3 || (bpp > 3 && (((long)src_addr & 0x3L) == 0))))
-	{
-    int skipleft; 
-		unsigned char *src_buf = (unsigned char *)src_addr;
-		src_pos = src_y * (long)src_wrap + src_x * bpp;
-		src_buf += src_pos;
-		RADEONSetClippingRectangleMMIO(rinfo_fvdi,(int)dst_x,(int)dst_y,(int)(dst_x+w-1),(int)(dst_y+h-1));
-		skipleft = ((int)src_buf & 3) << 3;
-		src_buf = (unsigned char*)((long)src_buf & ~3);
-		dst_x -= (long)skipleft;
-		w += (long)skipleft;
-		RADEONSetupForScanlineImageWriteMMIO(rinfo_fvdi,(int)operation,0xffffffff,-1,(int)src->bitplanes);
-		RADEONSubsequentScanlineImageWriteRectMMIO(rinfo_fvdi,(int)dst_x,(int)dst_y,(int)w,(int)h,skipleft);
-		while(--h >= 0)
-		{
-			RADEONSubsequentScanlineMMIO(rinfo_fvdi, (unsigned long*)src_buf);
-			src_buf += src_wrap;
-		}
-		RADEONDisableClippingMMIO(rinfo_fvdi);
-#ifdef SEMAPHORE
-		xSemaphoreGiveRADEON();
-#endif	
-		return(1);
-	}
-#endif
 	radeonfb_sync(rinfo_fvdi->info);
 #endif /* TEST_NOPCI */
 	src_pos = (src_y * (long)src_wrap) + (src_x * (long)bpp);
@@ -2095,18 +2053,8 @@ long CDECL c_line_draw(Virtual *vwk, long x1, long y1, long x2, long y2,
 			rop = 3;
 			break;
 		case 2:  /* transparent (col AND obj) OR (old AND NOT obj) */
-#if 1
 			rop = 3;
 			background = -1;			
-#else
-			if((pattern & 0xffff) == 0xffff) /* solid line */
-				rop = 3;
-			else
-			{
-				rop = 7;
-				background = -1;				
-			}
-#endif
 			break;
 		case 3:  /* XOR         (obj XOR old)  */
 			rop = 6;
@@ -2119,56 +2067,13 @@ long CDECL c_line_draw(Virtual *vwk, long x1, long y1, long x2, long y2,
 			background = -1;
 			break;
 		case 4:  /* reverse transparent (old AND obj) OR (col AND not obj) */
-#if 1
 			rop = 12;
 			background = -1;
-#else
-			rop = 13;
-#endif
 			if((pattern & 0xffff) == 0xffff) /* solid line */
 				return(1);
 			break;
 		default:
 			return(1);
-#if 0
-//fb=	00  01  10  11
-//	0x0,0x0,0x3,0x3		replace mode
-//	0x4,0x4,0x7,0x7		transparent mode
-//	0x6,0x6,0x6,0x6		XOR mode
-//	0x1,0x1,0xD,0xD		inverse transparent mode
-//	0x0,0xF,0x0,0xF		mode 0  D = 0
-//	0x0,0xE,0x1,0xF		mode 1  D = S and D
-//	0x0,0xD,0x2,0xF		mode 2  D = S and [not D]
-//	0x0,0xC,0x3,0xF		mode 3  D = S	(replace)
-//	0x0,0xB,0x4,0xF		mode 4  D = [not S] and D
-//	0x0,0xA,0x5,0xF		mode 5  D = D
-//	0x0,0x9,0x6,0xF		mode 6  D = S xor D (XOR mode)
-//	0x0,0x8,0x7,0xF		mode 7  D = S or D  (OR mode)
-//	0x0,0x7,0x8,0xF		mode 8  D = not [S or D]
-//	0x0,0x6,0x9,0xF		mode 9  D = not [S xor D]
-//	0x0,0x5,0xA,0xF		mode A  D = not D
-//	0x0,0x4,0xB,0xF		mode B  D = S or [not D]
-//	0x0,0x3,0xC,0xF		mode C  D = not S
-//	0x0,0x2,0xD,0xF		mode D  D = [not s] or D
-//	0x0,0x1,0xE,0xF		mode E  D = not [S and D]
-//	0x0,0x0,0xF,0xF		mode F  D = 1
-    { ROP3_ZERO, ROP3_ZERO }, /* GXclear        */
-    { ROP3_DSa,  ROP3_DPa  }, /* Gxand          */
-    { ROP3_SDna, ROP3_PDna }, /* GXandReverse   */
-    { ROP3_S,    ROP3_P    }, /* GXcopy         */
-    { ROP3_DSna, ROP3_DPna }, /* GXandInverted  */
-    { ROP3_D,    ROP3_D    }, /* GXnoop         */
-    { ROP3_DSx,  ROP3_DPx  }, /* GXxor          */
-    { ROP3_DSo,  ROP3_DPo  }, /* GXor           */
-    { ROP3_DSon, ROP3_DPon }, /* GXnor          */
-    { ROP3_DSxn, ROP3_PDxn }, /* GXequiv        */
-    { ROP3_Dn,   ROP3_Dn   }, /* GXinvert       */
-    { ROP3_SDno, ROP3_PDno }, /* GXorReverse    */
-    { ROP3_Sn,   ROP3_Pn   }, /* GXcopyInverted */
-    { ROP3_DSno, ROP3_DPno }, /* GXorInverted   */
-    { ROP3_DSan, ROP3_DPan }, /* GXnand         */
-    { ROP3_ONE,  ROP3_ONE  }  /* GXset          */
-#endif		
 	}
 #ifdef DRIVER_IN_ROM
 #ifdef SEMAPHORE
@@ -2388,18 +2293,8 @@ long CDECL c_fill_polygon(Virtual *vwk, short points[][2], long n,
 			rop = 3;
 			break;
 		case 2:  /* transparent (col AND obj) OR (old AND NOT obj) */
-#if 1
 			rop = 3;
 			background = -1;
-#else
-			if(interior < 2) /* fill color */
-				rop = 3;
-			else
-			{
-				rop = 7;
-				background = -1;				
-			}
-#endif
 			break;
 		case 3:  /* XOR         (obj XOR old)  */
 			rop = 6;  
@@ -2412,12 +2307,8 @@ long CDECL c_fill_polygon(Virtual *vwk, short points[][2], long n,
 			background = -1;
 			break;
 		case 4:  /* reverse transparent (old AND obj) OR (col AND not obj) */			
-#if 1
 			rop = 12;
 			background = -1;
-#else
-			rop = 13;
-#endif
 			if(interior < 2)
 				return(1);
 			break;

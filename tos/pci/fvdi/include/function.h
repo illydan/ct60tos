@@ -38,19 +38,12 @@ extern void fill_poly(Virtual *vwk, short *p, long n, long colour, short *patter
 extern void fill_area(Virtual *vwk, long x1, long y1, long x2, long y2, long colour);
 extern void get_extent(Virtual *vwk, long length, short *text, short points[]);
 extern void draw_text(Virtual *vwk, long x, long y, short *text, long length, long colour);
-#if 0
-extern void hline(void *, int x1, int y1, int y2, int colour, short *pattern);
-#endif
 extern void fill_spans(void *, short *, long n, long colour, short *pattern, long mode, long interior_style);
 
 void do_arrow(Virtual *vwk, short *pts, int numpts, int colour, short *points, long mode);
 
 extern void fill_poly(Virtual *vwk, short *p, long n, long colour, short *pattern,
                       short *points, long mode, long interior_style);
-
-#if 0
-extern	void	GEXT_DCALL(short *parmblock[5]);
-#endif
 
 
 #ifdef __PUREC__
@@ -96,20 +89,6 @@ extern void *lib_vs_clip;
 extern void *lib_vr_trn_fm;
 extern void *lib_vrt_cpyfm;
 extern void *lib_vro_cpyfm;
-#if 0
-extern void lib_vst_color(Virtual *, short);
-extern void lib_vst_font(Virtual *, short);
-extern void lib_vst_point(Virtual *, short, short *, short *, short *, short *);
-extern void lib_vsl_color(Virtual *, short);
-extern void lib_vsl_type(Virtual *, short);
-extern void lib_vsm_color(Virtual *, short);
-extern void lib_vsm_type(Virtual *, short);
-extern void lib_vsf_color(Virtual *, short);
-extern void lib_vsf_interior(Virtual *, short);
-extern void lib_vsf_style(Virtual *, short);
-extern void lib_vs_clip(Virtual *, short, short *);
-extern void lib_vr_trn_fm(Virtual *, MFDB *, MFDB *);
-#endif
 extern void opnvwk_values(Virtual *, VDIpars *);
 
 extern short isqrt(unsigned long x);

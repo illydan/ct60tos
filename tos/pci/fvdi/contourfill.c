@@ -75,9 +75,6 @@ short get_seed(Virtual * vwk, short xin, short yin, short *xleftout, short *xrig
                 rect.y2 = ABS(yin);
 
                 /* Fix corners and invoke rectangle fill routine */
-#if 0
-                arb_corner(&rect);
-#endif
                 fill_area(vwk, rect.x1, rect.y1, rect.x2, rect.y2, vwk->fill.colour.foreground);
 
                 queue[qtmp] = EMPTY;
@@ -203,9 +200,6 @@ void contourfill(Virtual * vwk, long color, short *coords)
             rect.y2 = ABS(oldy);
 
             /* Fix corners and invoke rectangle fill routine */
-#if 0
-            arb_corner(&rect);
-#endif
             fill_area(vwk, rect.x1, rect.y1, rect.x2, rect.y2, vwk->fill.colour.foreground);
         }
     }

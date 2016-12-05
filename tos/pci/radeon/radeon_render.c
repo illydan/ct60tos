@@ -327,20 +327,8 @@ static int RADEONSetupTextureMMIO(struct radeonfb_info *rinfo,
 //	if(rinfo->NeedToSync)
 		RADEONWaitForIdleMMIO(rinfo);
 	/* Upload texture to card. */
-#if 1
 	blit_copy(src, (src_pitch / tex_bytepp) - width, dst, (dst_pitch / tex_bytepp) - width, width, height, tex_bytepp << 3);
 	while(blit_copy_ok() > 0);
-#else
-	{
-		int i = height;
-		while(--i >= 0)
-		{
-			memcpy(dst, src, width * tex_bytepp);
-			src += src_pitch;
-			dst += dst_pitch;
-		}
-	}
-#endif
 	if(rinfo->big_endian)
     RADEONRestoreByteswap(rinfo);
 	if((rinfo->family == CHIP_FAMILY_RV250) || (rinfo->family == CHIP_FAMILY_RV280)

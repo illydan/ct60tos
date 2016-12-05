@@ -41,12 +41,7 @@
 #define SQUARED 0
 #define ARROWED 1
 
-#if 1
 #define SMUL_DIV(x,y,z)	((short)(((short)(x)*(long)((short)(y)))/(short)(z)))
-#else
-int SMUL_DIV(int, int, int);   //   d0d1d0d2
-#pragma inline d0 = SMUL_DIV(d0, d1, d2) { "c1c181c2"; }
-#endif
 
 
 /* m_dot, m_plus, m_star, m_square, m_cross, m_dmnd */
@@ -60,7 +55,6 @@ static signed char *marker[] = {row1, row2, row3, row4, row5, row6};
 
 extern short solid;
 
-#if 1
 void do_circ(Virtual *vwk, short *points, int cx, int cy, int num_qc_lines, short *q_circle, long colour, long mode)
 {
 	int k, x1, y1, x2, y2, vx=1, vy=1;
@@ -114,7 +108,6 @@ void do_circ(Virtual *vwk, short *points, int cx, int cy, int num_qc_lines, shor
 		}
 	}
 }
-#endif
 
 
 int wide_setup(Virtual *vwk, int width, short *q_circle)
@@ -137,11 +130,7 @@ int wide_setup(Virtual *vwk, int width, short *q_circle)
 	/* Set the line width internals and the return parameters.  
 	 * Return if the line width is being set to one.
 	 */
-#if 0
-	if ((line_qw = width) == 1)
-#else
 	if (width == 1)
-#endif
 		return 0;
 
 	/* Initialize the circle DDA.  "y" is set to the radius. */
@@ -284,15 +273,7 @@ void wide_line(Virtual *vwk, short *pts, long numpts, long colour, short *points
 {
 	int i, j, k;
 	int wx1, wy1, wx2, wy2, vx, vy;
-#if 0
-# if Y_ASPECT >= X_ASPECT
-	short q_circle[MAX_L_WIDTH];
-# else
-	short q_circle[(MAX_L_WIDTH * X_ASPECT / Y_ASPECT) / 2 + 1];
-# endif
-#else
 	short *q_circle;
-#endif
 	int num_qc_lines;
 	int xsize, ysize;
 
@@ -318,11 +299,9 @@ void wide_line(Virtual *vwk, short *pts, long numpts, long colour, short *points
 	wx1 = pts[j++];
 	wy1 = pts[j++];
 
-#if 1
 	/* If the end style for the first point is not squared, output a circle. */
 	if (vwk->line.ends.beginning != SQUARED)
 		do_circ(vwk, points, wx1, wy1, num_qc_lines, q_circle, colour, mode);
-#endif
 
 	/* Loop over the number of points passed in. */
 	for(i = 1; i < numpts; i++) {
@@ -373,13 +352,11 @@ void wide_line(Virtual *vwk, short *pts, long numpts, long colour, short *points
 		points[7] = wy2 + vy;
 		fill_poly(vwk, points, 4, colour, &solid, &points[8], mode, 0x00010000L);
 
-#if 1
 		/* If the terminal point of the line segment is an internal joint,
 		 * or the end style is not squared, output a filled circle.
 		 */
 		if ((vwk->line.ends.end != SQUARED) || (i < numpts - 1))
 			do_circ(vwk, points, wx2, wy2, num_qc_lines, q_circle, colour, mode);
-#endif
 
 		/* The line segment end point becomes the starting point for the next
 		 * line segment.
@@ -455,11 +432,7 @@ pmarker(int type, int size, int w_in, int h_in, char *buf)
 
   for(i = 0; i <= 4; i++) {
     if (!w_in) {
-#if 0
-      tmp = (short)((short)(((short)size * 30 + 11) / 22) * i * 4 + 15) / 30 + 1;
-#else
       tmp = (short)((short)size * i * 4 + 11) / 22 + 1;
-#endif
     } else
       tmp = ((short)w_in * i + 2) / 4;
     nwidth[i] = -(tmp / 2);
@@ -546,21 +519,13 @@ void arrow(Virtual *vwk, short *xy, short inc, int numpts, int colour, short *po
 		/* Get the length of the vector connecting the point with the end point.
 		 * If the vector is of sufficient length, the search is over.
 		 */
-#if 0
-		if ((line_len = vec_len(ABS(dx), ABS(dy))) >= arrow_len)
-#else
 		line_len2 = (long)dx * dx + (long)dy * dy;
 		if (line_len2 >= arrow_len2)
-#endif
 			break;
 	}
 
 	/* If the longest vector is insufficiently long, don't draw an arrow. */
-#if 0
-	if (line_len < arrow_len)
-#else
 	if (line_len2 < arrow_len2)
-#endif
 		return;
 
 	line_len = isqrt(line_len2);

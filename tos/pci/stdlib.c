@@ -10,7 +10,6 @@
 #define NULL        (0)
 
 /****************************************************************/
-#if 1
 static int isspace(int c)
 {
   switch(c)
@@ -25,15 +24,6 @@ static int isspace(int c)
   }
   return FALSE;
 }
-#else
-int isspace(int ch)
-{
-    if ((ch == ' ') || (ch == '\t'))    /* \n ??? */
-        return TRUE;
-    else
-        return FALSE;
-}
-#endif
 
 /****************************************************************/
 int isalnum(int ch)
@@ -352,49 +342,6 @@ int strncmp(const char *s1, const char *s2, int n)
     }
     return (*s1p - *s2p);
 }
-
-#if 0
-/****************************************************************/
-void *memcpy(void *dest, const void *src, unsigned n)
-{
-    int longs, bytes;
-    unsigned long *dpl = (unsigned long *)dest;
-    unsigned long *spl = (unsigned long *)src;
-    unsigned char  *dpb, *spb;
-
-    if ((dest != NULL) && (src != NULL) && (n > 0))
-    {
-        bytes = (n & 0x3);
-        longs = (n - bytes) >> 2;
-    
-        while (longs--)
-            *dpl++ = *spl++;
-        
-        dpb = (unsigned char *)dpl;
-        spb = (unsigned char *)spl;
-        
-        while (bytes--)
-            *dpb++ = *spb++;
-    }
-    return dest;
-}
-
-/****************************************************************/
-void *memset(void *s, int c, unsigned n)
-{
-    /* Not optimized, but very portable */
-    unsigned char *sp = (unsigned char *)s;
-
-    if ((s != NULL) && (n > 0))
-    {
-        while (n--)
-        {
-            *sp++ = (unsigned char)c;
-        }
-    }
-    return s;
-}
-#endif
 
 /****************************************************************/
 static long check_base(char ch, long base)

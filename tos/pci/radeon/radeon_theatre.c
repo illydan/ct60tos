@@ -362,19 +362,6 @@ static unsigned long dsp_set_video_input_connector(TheatrePtr t, unsigned long c
 	return result;
 }
 
-#if 0
-static unsigned long dsp_reset(TheatrePtr t)
-{
-	unsigned long fb_scratch0 = 0;
-	unsigned long result;
-	fb_scratch0 = ((2 << 8) & 0xff00) | (8 & 0xff);
-	result = dsp_send_command(t, 0, fb_scratch0);
-	DPRINTVALHEX("Rage Theatre: dsp_reset: ", result);
-	DPRINT("\r\n");
-	return result;
-}
-#endif
-
 static unsigned long dsp_set_lowpowerstate(TheatrePtr t, unsigned long pstate)
 {
 	unsigned long fb_scratch0 = 0;
@@ -418,37 +405,6 @@ static unsigned long dsp_video_standard_detection(TheatrePtr t)
 	return result;
 }
 
-#if 0
-static unsigned long dsp_get_signallockstatus(TheatrePtr t)
-{
-	unsigned long fb_scratch1 = 0;
-	unsigned long fb_scratch0 = 0;
-	unsigned long result;
-	fb_scratch0 = 0 | (77 & 0xff);
-	result = dsp_send_command(t, fb_scratch1, fb_scratch0);
-	DPRINTVALHEX("Rage Theatre: dsp_get_signallockstatus: ", result);
-	DPRINTVALHEX(", h_pll: ", (result >> 8) & 0xff);
-	DPRINTVALHEX(", v_pll: ", (result >> 16) & 0xff);
-	DPRINT("\r\n");
-	return result;
-}
-#endif
-
-#if 0
-static unsigned long dsp_get_signallinenumber(TheatrePtr t)
-{
-	unsigned long fb_scratch1 = 0;
-	unsigned long fb_scratch0 = 0;
-	unsigned long result;
-	fb_scratch0 = 0 | (78 & 0xff);
-	result = dsp_send_command(t, fb_scratch1, fb_scratch0);
-	DPRINTVALHEX("Rage Theatre: dsp_get_signallinenumber: ", result);
-	DPRINTVALHEX(", linenum: ", (result >> 8) & 0xffff);
-	DPRINT("\r\n");
-	return result;
-}
-#endif
-
 static unsigned long dsp_set_brightness(TheatrePtr t, unsigned char brightness)
 {
 	unsigned long fb_scratch1 = 0;
@@ -472,20 +428,6 @@ static unsigned long dsp_set_contrast(TheatrePtr t, unsigned char contrast)
 	DPRINT("\r\n");
 	return result;
 }
-
-#if 0
-static unsigned long dsp_set_sharpness(TheatrePtr t, int sharpness)
-{
-	unsigned long fb_scratch1 = 0;
-	unsigned long fb_scratch0 = 0;
-	unsigned long result;
-	fb_scratch0 = 0 | (73 & 0xff);
-	result = dsp_send_command(t, fb_scratch1, fb_scratch0);
-	DPRINTVALHEX("Rage Theatre: dsp_set_sharpness: ", result);
-	DPRINT("\r\n");
-	return result;
-}
-#endif
 
 static unsigned long dsp_set_tint(TheatrePtr t, unsigned char tint)
 {
@@ -2196,9 +2138,6 @@ void RT_SetConnector(TheatrePtr t, unsigned short wConnector, int tunerFlag)
 			DPRINT("Rage Theatre Checkpoint 1\r\n");
 			/* Get the contrast value - make sure we are viewing a visible line*/
 			counter=0;
-#if 0
-			while(!((ReadRT_fld(fld_VS_LINE_COUNT)> 1) && (ReadRT_fld(fld_VS_LINE_COUNT)<20)) && (counter < 100000))
-#endif
 			while((ReadRT_fld(fld_VS_LINE_COUNT)<20) && (counter < 10000))
 				counter++;
 			dwTempContrast = ReadRT_fld(fld_LP_CONTRAST);
@@ -2459,10 +2398,6 @@ void ResetTheatreRegsForNoTVout(TheatrePtr t)
 	RT_regw(VIP_HCOUNT, 0x0); 
 	RT_regw(VIP_VCOUNT, 0x0); 
 	RT_regw(VIP_DFCOUNT, 0x0); 
-#if 0
-	RT_regw(VIP_CLOCK_SEL_CNTL, 0x2b7);  /* versus 0x237 <-> 0x2b7 */
-	RT_regw(VIP_VIN_PLL_CNTL, 0x60a6039);
-#endif
 	RT_regw(VIP_FRAME_LOCK_CNTL, 0x0);
 }
 
@@ -2474,13 +2409,8 @@ void ResetTheatreRegsForTVout(TheatrePtr t)
 	RT_regw(VIP_GPIO_INOUT, 0x340b0000);  */
 /*	RT_regw(VIP_MASTER_CNTL, 0x6e8);  */
 	RT_regw(VIP_CLKOUT_CNTL, 0x29); 
-#if 1
 	RT_regw(VIP_HCOUNT, 0x1d1); 
 	RT_regw(VIP_VCOUNT, 0x1e3); 
-#else
-	RT_regw(VIP_HCOUNT, 0x322); 
-	RT_regw(VIP_VCOUNT, 0x151);
-#endif
 	RT_regw(VIP_DFCOUNT, 0x01);
 /*	RT_regw(VIP_CLOCK_SEL_CNTL, 0xb7); */  /* versus 0x237 <-> 0x2b7 */
 	RT_regw(VIP_CLOCK_SEL_CNTL, 0x2b7);  /* versus 0x237 <-> 0x2b7 */

@@ -71,9 +71,7 @@ extern Access *access;
 
 extern long *pid;
 
-#if 1
 extern Workstation *screen_wk;    /* Used in tokenize() */
-#endif
 
 /*
  * Option values

@@ -160,58 +160,6 @@ static float floor(float val)
 	return((float)temp);
 }
 
-#if 0
-
-static inline unsigned long INPLL(unsigned long addr)
-{
-	OUTREG8(CLOCK_CNTL_INDEX, addr & 0x0000001f);
-	return(INREG(CLOCK_CNTL_DATA));
-}
-
-#define OUTPLL(addr,val) OUTREG8(CLOCK_CNTL_INDEX, (addr & 0x0000001f) | 0x00000080); \
-				OUTREG(CLOCK_CNTL_DATA, val)
-#define OUTPLLP(addr,val,mask)  					\
-	do {								\
-		unsigned int _tmp = INPLL(addr);			\
-		_tmp &= (mask);						\
-		_tmp |= (val);						\
-		OUTPLL(addr, _tmp);					\
-	} while(0)
-
-static unsigned long radeon_vid_get_dbpp(void)
-{
-	unsigned long dbpp,retval;
-	dbpp = (INREG(CRTC_GEN_CNTL) >> 8) & 0xF;
-	switch(dbpp)
-	{
-		case DST_8BPP: retval = 8; break;
-		case DST_15BPP: retval = 15; break;
-		case DST_16BPP: retval = 16; break;
-		case DST_24BPP: retval = 24; break;
-		default: retval=32; break;
-	}
-	return(retval);
-}
-
-static unsigned long radeon_get_xres(void)
-{
-	/* FIXME: currently we extract that from CRTC!!!*/
-	unsigned long xres,h_total;
-	h_total = INREG(CRTC_H_TOTAL_DISP);
-	xres = (h_total >> 16) & 0xffff;
-	return((xres + 1) * 8);
-}
-
-static unsigned long radeon_get_yres(void)
-{
-	/* FIXME: currently we extract that from CRTC!!!*/
-	unsigned long yres,v_total;
-	v_total = INREG(CRTC_V_TOTAL_DISP);
-	yres = (v_total >> 16) & 0xffff;
-	return(yres + 1);
-}
-#endif
-
 static int radeon_is_dbl_scan(void)
 {
   return((INREG(CRTC_GEN_CNTL)) & CRTC_DBL_SCAN_EN);
@@ -406,15 +354,6 @@ static void radeon_set_transform(float bright, float cont, float sat, float hue,
 	CAdjGCr = sat * (OvHueSin * trans[ref].RefGCb + OvHueCos * trans[ref].RefGCr);
 	CAdjBCb = sat * OvHueCos * trans[ref].RefBCb;
 	CAdjBCr = sat * OvHueSin * trans[ref].RefBCb;
-#if 0 /* default constants */
-	CAdjLuma = 1.16455078125;
-	CAdjRCb = 0.0;
-	CAdjRCr = 1.59619140625;
-	CAdjGCb = -0.39111328125;
-	CAdjGCr = -0.8125;
-	CAdjBCb = 2.01708984375;
-	CAdjBCr = 0;
-#endif
 	OvLuma = CAdjLuma;
 	OvRCb = CAdjRCb;
 	OvRCr = CAdjRCr;
@@ -425,19 +364,10 @@ static void radeon_set_transform(float bright, float cont, float sat, float hue,
 	OvROff = RedAdj + CAdjOff - OvLuma * Loff - (OvRCb + OvRCr) * Coff;
 	OvGOff = GreenAdj + CAdjOff - OvLuma * Loff - (OvGCb + OvGCr) * Coff;
 	OvBOff = BlueAdj + CAdjOff - OvLuma * Loff - (OvBCb + OvBCr) * Coff;
-#if 0 /* default constants */
-	OvROff = -888.5;
-	OvGOff = 545;
-	OvBOff = -1104;
-#endif 
 	dwOvROff = ((int)(OvROff * 2.0)) & 0x1fff;
 	dwOvGOff = (int)(OvGOff * 2.0) & 0x1fff;
 	dwOvBOff = (int)(OvBOff * 2.0) & 0x1fff;
 	/* Whatever docs say about R200 having 3.8 format instead of 3.11 as in Radeon is a lie */
-#if 0
-	if(!IsR200)
-	{
-#endif
 		dwOvLuma =(((int)(OvLuma * 2048.0))&0x7fff)<<17;
 		dwOvRCb = (((int)(OvRCb * 2048.0))&0x7fff)<<1;
 		dwOvRCr = (((int)(OvRCr * 2048.0))&0x7fff)<<17;
@@ -445,19 +375,6 @@ static void radeon_set_transform(float bright, float cont, float sat, float hue,
 		dwOvGCr = (((int)(OvGCr * 2048.0))&0x7fff)<<17;
 		dwOvBCb = (((int)(OvBCb * 2048.0))&0x7fff)<<1;
 		dwOvBCr = (((int)(OvBCr * 2048.0))&0x7fff)<<17;
-#if 0
-	}
-	else
-	{
-		dwOvLuma = (((int)(OvLuma * 256.0))&0x7ff)<<20;
-		dwOvRCb = (((int)(OvRCb * 256.0))&0x7ff)<<4;
-		dwOvRCr = (((int)(OvRCr * 256.0))&0x7ff)<<20;
-		dwOvGCb = (((int)(OvGCb * 256.0))&0x7ff)<<4;
-		dwOvGCr = (((int)(OvGCr * 256.0))&0x7ff)<<20;
-		dwOvBCb = (((int)(OvBCb * 256.0))&0x7ff)<<4;
-		dwOvBCr = (((int)(OvBCr * 256.0))&0x7ff)<<20;
-	}
-#endif
 	OUTREG(OV0_LIN_TRANS_A, dwOvRCb | dwOvLuma);
 	OUTREG(OV0_LIN_TRANS_B, dwOvROff | dwOvRCr);
 	OUTREG(OV0_LIN_TRANS_C, dwOvGCb | dwOvLuma);
@@ -659,21 +576,6 @@ int vixInit(void)
 		offset += sizeof(bm_list_descriptor); // 4096;
   }
 
-#if 0
-	/* allocate temporary buffer for DMA */
-	dma_phys_addrs = (unsigned long *)Mxalloc(radeon_ram_size*sizeof(unsigned long)/4096,3);
-
-	/*
-	WARNING: We MUST have continigous descriptors!!!
-  But: (720*720*2(YUV422)*16(sizeof(bm_descriptor)))/4096=4050
-	Thus one 4K page is far enough to describe max movie size
-	*/
-	for(i=0;i<VID_PLAY_MAXFRAMES;i++)
-	{
-//		if((radeon_dma_desc_base[i] = memalign(4096,radeon_ram_size*sizeof(bm_list_descriptor)/4096)) == 0)
-//			goto out_mem;
-  }
-#endif
 #endif
 	/* save registers */
 	radeon_fifo_wait(besr.big_endian ? 7 : 6);
@@ -708,13 +610,6 @@ void vixDestroy(void)
 #ifdef VIDIX_ENABLE_BM
 //	Mfree(dma_phys_addrs);
 //	dma_phys_addrs = NULL;
-#if 0
-	for(i=0;i<VID_PLAY_MAXFRAMES;i++) 
-	{
-		if(radeon_dma_desc_base[i])
-			Mfree(radeon_dma_desc_base[i]);
-	}
-#endif
 #endif
 }
 
@@ -2298,27 +2193,6 @@ int vixConfigPlayback(vidix_playback_t *info)
 	besr.vid_nbufs = info->num_frames;
 	info->dga_addr = (char *)radeon_mem_base + radeon_overlay_off;
 	radeon_vid_init_video(info);
-#if 0
-	DPRINTVAL(" src.w: ", info->src.w);	
-	DPRINTVAL(" src.h: ", info->src.h);	
-	DPRINTVAL(" dest.w: ", info->dest.w);	
-	DPRINTVAL(" dest.h: ", info->dest.h);	
-	DPRINTVAL(" dest.pitch.y: ", info->dest.pitch.y);
-	DPRINT("\r\n");
-	DPRINTVAL(" frame_size: ", info->frame_size);	
-	DPRINTVAL(" num_frames: ", info->num_frames);	
-	DPRINTVALHEX(" dga_addr: ", (long)info->dga_addr);	
-	DPRINT("\r\n");
-	DPRINTVALHEX(" offset.y: ", info->offset.y);	
-	DPRINTVALHEX(" offset.u: ", info->offset.u);	
-	DPRINTVALHEX(" offset.v: ", info->offset.v);
-	DPRINT("\r\n");
-	DPRINTVALHEX(" adrs_y: ", besr.vid_buf_base_adrs_y[0]);
-	DPRINTVALHEX(" adrs_u: ", besr.vid_buf_base_adrs_u[0]);
-	DPRINTVALHEX(" adrs_v: ", besr.vid_buf_base_adrs_v[0]);
-	DPRINT("\r\n");
-	Cconin();
-#endif
 	return(0);
 }
 
@@ -2652,26 +2526,6 @@ int vixPlaybackCopyFrame(vidix_dma_t *dmai)
 	DPRINTVALHEXLONG(" ", list[0].reserved);
 	DPRINT("\r\n");
 	
-#if 0
-	count = dmai->size;
-	for(i=0;i<n;i++)
-	{
-		list[i].framebuf_offset = radeon_overlay_off + dest_ptr;
-		list[i].sys_addr = dma_phys_addrs[i]; 
-		list[i].command = (count > 4096 ? 4096 : count | DMA_GUI_COMMAND__EOL);
-		list[i].reserved = 0;
-//		DPRINTVAL("VIDIX: RADEON_DMA_TABLE[", i);
-//		DPRINTVALHEXLONG("] ", list[i].framebuf_offset);
-//		DPRINTVALHEXLONG(" ", list[i].sys_addr);
-//		DPRINTVALHEXLONG(" ", list[i].command);
-//		DPRINTVALHEXLONG(" ", list[i].reserved);
-//		DPRINT("\r\n");
-		dest_ptr += 4096;
-		count -= 4096;
-	}
-//	cpu_flush(list,4096);
-
-#endif
 	radeon_engine_idle();
 	for(i=0;i<1000;i++)
 		INREG(BUS_CNTL); /* FlushWriteCombining */

@@ -91,13 +91,8 @@ void clc_arc(Virtual *vwk, long gdp_code, long xc, long yc, long xrad, long yrad
 		c_pline(vwk, n_steps + 1, *(long *)((void *)&border_colour), points - (n_steps + 1) * 2);
 	else
 	{
-#if 0
-		filled_poly(vwk, points - (n_steps + 1) * 2, n_steps + 1,
-		            *(long *)((void *)&fill_colour), pattern, points, mode, interior_style);
-#else
 		fill_poly(vwk, points - (n_steps + 1) * 2, n_steps + 1,
 		          *(long *)((void *)&fill_colour), pattern, points, mode, interior_style);
-#endif
 		if (vwk->fill.perimeter && vwk->fill.interior!=1)
 			c_pline(vwk, n_steps + 1,
 			        *(long *)((void *)&border_colour), points - (n_steps + 1) * 2);
@@ -139,21 +134,12 @@ long clc_nsteps(long xrad, long yrad)
 	else
 		n_steps = yrad;
 
-#if 0
-	n_steps = n_steps >> 2;
-
-	if (n_steps < 16)
-		n_steps = 16;
-	else if (n_steps > MAX_ARC_CT)
-		n_steps = MAX_ARC_CT;
-#else
 	n_steps = (n_steps * arc_split) >> 16;
 
 	if (n_steps < arc_min)
 		n_steps = arc_min;
 	else if (n_steps > arc_max)
 		n_steps = arc_max;
-#endif
 	
 	return n_steps;
 }
@@ -166,41 +152,9 @@ void ellipsearc(Virtual *vwk, long gdp_code,
 	Fgbg fill_colour, border_colour;
 	long interior_style;
 
-#if 0
-	char buf[16];
-	Cconws("gdp:");
-	Funcs_ltoa(buf, gdp_code, 10);
-	Cconws(buf);
-	Cconws(" xc:");
-	Funcs_ltoa(buf, xc, 10);
-	Cconws(buf);
-	Cconws(" yc:");
-	Funcs_ltoa(buf, yc, 10);
-	Cconws(buf);
-	Cconws(" xrad:");
-	Funcs_ltoa(buf, xrad, 10);
-	Cconws(buf);
-	Cconws(" yrad:");
-	Funcs_ltoa(buf, yrad, 10);
-	Cconws(buf);
-	Cconws(" beg_ang:");
-	Funcs_ltoa(buf, beg_ang, 10);
-	Cconws(buf);
-	Cconws(" end_ang:");
-	Funcs_ltoa(buf, end_ang, 10);
-	Cconws(buf);
-	Cconws("\r\n");
-	Crawcin();
-#endif
-
 	del_ang = end_ang - beg_ang;
 	if (del_ang <= 0)
 		del_ang += 3600;
-
-#if 0
-	if (xfm_mode < 2)	/* If xform != raster then flip */
-		yrad = yres - yrad;
-#endif
 
 	n_steps = clc_nsteps(xrad, yrad);	
 	n_steps = SMUL_DIV(del_ang, n_steps, 3600);
@@ -227,52 +181,6 @@ void ellipsearc(Virtual *vwk, long gdp_code,
 	free_block(points);
 }
 
-
-#if 0
-void arb_corner(WORD * corners, WORD type)
-{
-    /* Local declarations. */
-    REG WORD temp, typ;
-    REG WORD *xy1, *xy2;
-
-    /* Fix the x coordinate values, if necessary. */
-
-    xy1 = corners;
-    xy2 = corners + 2;
-    if (*xy1 > *xy2) {
-        temp = *xy1;
-        *xy1 = *xy2;
-        *xy2 = temp;
-    }
-
-
-
-    /* End if:  "x" values need to be swapped. */
-    /* Fix y values based on whether traditional (ll, ur) or raster-op */
-    /* (ul, lr) format is desired.                                     */
-    xy1++;                      /* they now point to corners[1] and
-                                   corners[3] */
-    xy2++;
-
-    typ = type;
-
-    if (((typ == LLUR) && (*xy1 < *xy2)) ||
-        ((typ == ULLR) && (*xy1 > *xy2))) {
-        temp = *xy1;
-        *xy1 = *xy2;
-        *xy2 = temp;
-    }                           /* End if:  "y" values need to be swapped. */
-}                               /* End "arb_corner". */
-#endif
-
-
-#if 0
-    case 7: /* GDP Rounded Box */
-      ltmp_end = line_beg;
-      line_beg = SQUARED;
-      rtmp_end = line_end;
-      line_end = SQUARED;
-#endif
 
 void rounded_box(Virtual *vwk, long gdp_code, short *coords)
 /* long x1, long y1, long x2, long y2) */
@@ -314,9 +222,6 @@ void rounded_box(Virtual *vwk, long gdp_code, short *coords)
 		y1 = coords[3];
 	}
 
-#if 0
-	arb_corner(PTSIN, LLUR);
-#endif
 	rdeltax = (x2 - x1) / 2;
 	rdeltay = (y2 - y1) / 2;
 
@@ -378,11 +283,7 @@ void rounded_box(Virtual *vwk, long gdp_code, short *coords)
 	if (gdp_code == 8) {
 		c_pline(vwk, 21, *(long *)((void *)&border_colour), points);
 	} else {
-#if 0
-		filled_poly(vwk, points, 21, *(long *)(void *)&fill_colour), pattern, &points[42], vwk->mode, interior_style);
-#else
 		fill_poly(vwk, points, 21, *(long *)((void *)&fill_colour), pattern, &points[42], vwk->mode, interior_style);
-#endif
 		if (vwk->fill.perimeter && vwk->fill.interior!=1)
 			c_pline(vwk, 21, *(long *)((void *)&border_colour), points);
 	}
@@ -390,28 +291,3 @@ void rounded_box(Virtual *vwk, long gdp_code, short *coords)
 }
 	
 
-#if 0
-/* This is the fill pattern setup */
-		case 2:
-			if (fill_index < 8) {
-			    patmsk = DITHRMSK;
-			    patptr = &DITHER[fill_index * (patmsk + 1)];
-			} else {
-			    patmsk = OEMMSKPAT;
-			    patptr = &OEMPAT[(fill_index - 8) * (patmsk + 1)]; 
-			}
-			break;
-		case 3:
-			if (fill_index < 6) {
-			    patmsk = HAT_0_MSK;
-			    patptr = &HATCH0[fill_index * (patmsk + 1)];
-			} else {
-			    patmsk = HAT_1_MSK;
-			    patptr = &HATCH1[(fill_index - 6) * (patmsk + 1)];
-			}
-			break;
-		case 4:
-			patmsk = 0x000f;
-			patptr = &UD_PATRN;
-			break;
-#endif

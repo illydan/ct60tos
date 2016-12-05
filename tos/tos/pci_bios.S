@@ -44,11 +44,6 @@ _install_pci_bios:
 	moveq #-1,D0                 // error
 	bra .end_install
 .abort_install2:
-#if 0 // #ifdef DEBUG
-	bsr dump_plx
-.abort_all:
-	bra.s .abort_all
-#endif /* DEBUG */
 	moveq #-1,D0                 // error
 	bra .end_install
 .no_hardware:
@@ -132,61 +127,10 @@ _install_pci_bios:
 	bsr debug_display_string
 .plx_in_little:
 #endif
-#if 0
-	move.l #0x00300100,D2        // Little Endian
-	move.l #BIGEND,D1            // Big/Little Endian Descriptor /  Local Miscellaneous Control 
-	bsr write_local_config_longword
-#endif
 	// pin BIGEND is active => try to use little endian
 	move.l #0x80200000,D2        // for BIGEND input to WAIT output
 	move.l #MARBR,D1             // Mode/DMA Arbitration
 	bsr write_local_config_longword
-#if 0
-#if 1 // one target zone 
-	move.l phystop,D2            // end STRAM
-	cmp.l #0x1357BD13,ramvalid
-	bne.s .no_sdram
-	move.l ramtop,D2             // end SDRAM
-.no_sdram:
-	moveq #24,D0
-	lsr.l D0,D2
-	addq.l #1,D2
-	lsl.l D0,D2                  // size
-	subq.l #1,D2
-	not.l D2
-	move.l #LAS0RR,D1            // Local Address Space 0 Range Register for PCI-to-Local Bus
-	bsr write_verify_local_config_longword
-	moveq #1,D2                  // enable PCI target window at 0
-	move.l #LAS0BA,D1            // Local Address Space 0 Local Base Address (Remap)
-	bsr write_verify_local_config_longword
-#else // two target zones
-	cmp.l #0x1357BD13,ramvalid
-	bne .no_sdram_2
-	move.l ramtop,D2
-	sub.l #0x01000000,D2
-	bpl.s .sdram_ok
-.no_sdram_2:
-	moveq #0,D2
-.sdram_ok:
-	moveq #24,D0
-	lsr.l D0,D2
-	addq.l #1,D2
-	lsl.l D0,D2                  // size
-	subq.l #1,D2
-	not.l D2
-	move.l #LAS0RR,D1            // Local Address Space 0 Range Register for PCI-to-Local Bus
-	bsr write_verify_local_config_longword
-	moveq #0,D2
-	cmp.l #0x1357BD13,ramvalid
-	bne.s .no_sdram
-	move.l ramtop,D2             // end SDRAM
-	beq.s .no_sdram
-	move.l #0x01000001,D2        // enable PCI target window at 0x1000000
-.no_sdram:
-	move.l #LAS0BA,D1            // Local Address Space 0 Local Base Address (Remap)
-	bsr write_verify_local_config_longword
-#endif
-#endif
 	move.l #~(PCI_IO_SIZE-1),D2
 	move.l #DMRR,D1              // Local Range Register for PCI Initiator-to-PCI
 	bsr write_verify_local_config_longword
@@ -203,7 +147,6 @@ _install_pci_bios:
 	move.l #DMCFGA,D1
 	bsr write_local_config_longword
 
-#if 1
 	move.l #0x40C300C3,D2
 	move.l #LBRD0,D1
 	bsr write_local_config_longword
@@ -216,31 +159,7 @@ _install_pci_bios:
 	move.l #0x000001C3,D2
 	move.l #DMAMODE1,D1
 	bsr write_local_config_longword
-#endif
 
-#if 0
-#if 1 // one target zone 	
-	moveq #0,D2
-	move.l #LAS1RR,D1            // Local Address Space 1 Range Register for PCI-to-Local Bus
-	bsr write_verify_local_config_longword
-	moveq #0,D2                  // disable PCI target window
-	move.l #LAS1BA,D1            // Local Address Space 1 Local Base Address (Remap)
-	bsr write_verify_local_config_longword
-#else // two target zones
-	move.l phystop,D2            // end STRAM
-	moveq #24,D0
-	lsr.l D0,D2
-	addq.l #1,D2
-	lsl.l D0,D2                  // size
-	subq.l #1,D2
-	not.l D2
-	move.l #LAS1RR,D1            // Local Address Space 1 Range Register for PCI-to-Local Bus
-	bsr write_verify_local_config_longword
-	moveq #1,D2                  // enable PCI target window at 0 (STRAM)
-	move.l #LAS1BA,D1            // Local Address Space 1 Local Base Address (Remap)
-	bsr write_verify_local_config_longword
-#endif
-#endif
 #ifndef LITTLE_ENDIAN_LANE_SWAPPED        // bits inverses sur le PLX ???
 	move.l #0x00300500,D2        // Little Endian + Local Init Status => PLX done
 #else	                             // lines are swapped by the bridge
@@ -248,22 +167,6 @@ _install_pci_bios:
 #endif                                    // + Local Init Status => PLX done
 	move.l #BIGEND,D1            // Big/Little Endian Descriptor /  Local Miscellaneous Control 
 	bsr write_local_config_longword
-#if 0
-	// PCI target windows configuration
-#if 1 // one target zone 
-	move.l #PCI_MEMORY_SIZE,D2   // STRAM/SDRAM mapped on PCI after the zones for devices
-	move.l #PCIBAR2,D1           // PCI Base Address Register for Memory Accesses to Local Address Space 0
-	bsr write_local_config_longword
-#else // two target zones
-	move.l #PCI_MEMORY_SIZE,D2   // SDRAM mapped on PCI after the zones for devices
-	add.l #0x01000000,D2
-	move.l #PCIBAR2,D1           // PCI Base Address Register for Memory Accesses to Local Address Space 0
-	bsr write_local_config_longword
-	move.l #PCI_MEMORY_SIZE,D2   // STRAM mapped on PCI after the zones for devices
-	move.l #PCIBAR3,D1           // PCI Base Address Register for Memory Accesses to Local Address Space 1
-	bsr write_local_config_longword
-#endif
-#endif
 	// Master Enable / Memory Space / I/O Space
 	move.l #PCI_CMDREG_MASTR + PCI_CMDREG_MEMSP + PCI_CMDREG_IOSP + 0x02900000,D2
 	moveq #PCICSR,D1             // PCI Command / Status Register
@@ -600,7 +503,6 @@ init_devices:
 		mulu #PCI_RSC_DESC_TOTALSIZE,D0
 		move.w #PCI_RSC_DESC_SIZE,D1
 		move.w D1,PCI_RSC_DESC_NEXT(A5,D0.l)
-#if 1		// information for bus mastering
 #ifdef BIG_ENDIAN
 		move.w #FLG_8BIT+FLG_16BIT+FLG_32BIT+ORD_MOTOROLA,D1
 #else
@@ -621,37 +523,6 @@ init_devices:
 		move.l D1,PCI_RSC_DESC_OFFSET(A5,D0.l)
 		move.l D1,PCI_RSC_DESC_DMAOFFSET(A5,D0.l)
 		clr.l PCI_RSC_DESC_LENGTH(A5,D0.l)
-#else		// information for bridge I/O
-#ifdef BIG_ENDIAN
-		move.w #FLG_IO+FLG_LAST+FLG_8BIT+FLG_16BIT+FLG_32BIT+ORD_MOTOROLA,D1
-#else
-#ifdef LITTLE_ENDIAN_ADDRESSES_SWAPPED
-		move.w #FLG_IO+FLG_LAST+FLG_8BIT+FLG_16BIT+FLG_32BIT+ORD_INTEL_AS,D1
-#else
-#ifdef LITTLE_ENDIAN_LANE_SWAPPED
-		move.w #FLG_IO+FLG_LAST+FLG_8BIT+FLG_16BIT+FLG_32BIT+ORD_INTEL_LS,D1
-#else
-		move.w #FLG_IO+FLG_LAST+FLG_8BIT+FLG_16BIT+FLG_32BIT+ORD_UNKNOWN,D1
-#endif /* LITTLE_ENDIAN_LANE_SWAPPED */
-#endif /* LITTLE_ENDIAN_ADDRESSES_SWAPPED */
-#endif /* BIG_ENDIAN */
-		move.w D1,PCI_RSC_DESC_FLAGS(A5,D0.l)
-		move.l OFFSET_IO(SP),D1
-		move.l D1,PCI_RSC_DESC_START(A5,D0.l) // offset I/O resource
-		move.l #256,D1
-		move.l D1,PCI_RSC_DESC_LENGTH(A5,D0.l)
-		add.l #256,OFFSET_IO(SP) // offset I/O resource
-		move.l #PCI_IO_OFFSET,PCI_RSC_DESC_OFFSET(A5,D0.l)
-		move.l #PCI_MEMORY_OFFSET,D1
-		move.l D1,PCI_RSC_DESC_DMAOFFSET(A5,D0.l)
-		clr.l PCI_RSC_DESC_ERROR(A5,D0.l) // internal error code
-		move.l PCI_RSC_DESC_START(A5,D0.l),D2 // offset I/O resource now for I/O PLX9054
-		moveq #PCIBAR1,D1        // PCI Base Address Register for I/O Accesses to Local, Runtime, and DMA
-		move.l D6,D0             // function
-		swap D0
-		or.l D4,D0               // slot
-		bsr write_config_longword
-#endif
 		moveq #1,D0
 		move.w D0,RESOURCE_INDEX(SP) // offset resource by handle
 		bra .end_area
@@ -1102,10 +973,6 @@ init_devices:
 		bsr write_config_byte
 		tst.l D6                 // function
 		bne .next_function
-#if 0
-		tst.w GRAPHICS_CARD_FLAG(SP)
-		bne .next_slot           // do not check for multi-function on graphic card (too big space)
-#endif
 		// before we go to the next slot, we first check if we have
 		// a multi-function device. If so, we need to initialize
 		// the remaining functions on the current card first
@@ -1239,45 +1106,11 @@ display_devices:
 		bsr fast_read_config_longword // & class code
 		move.l D0,D7
 		bsr display_infos_class
-#if 0
-		tst.l D6
-		beq.s .no_66mhz
-		moveq #PCICSR,D1
-		move.l D5,D0
-		swap D0
-		or.l D4,D0               // handle
-		bsr fast_read_config_longword
-		btst #21,D0
-		beq.s .no_66mhz
-		lea _66mhz(PC),A0
-		bsr display_string_single	
-.no_66mhz:
-#endif
 		moveq #5,D1
 .loop_resource:
 			move.l PCI_RSC_DESC_ERROR(A1),D0
 			bmi .error_device
 			move.w PCI_RSC_DESC_FLAGS(A1),D0
-#if 0
-			tst.l D6
-			beq.s .no_infos_desc
-			move.l D0,-(SP)
-			lea desc_io(PC),A0
-			and.w #FLG_IO,D0
-			bne.s .is_desc_io
-			lea desc_mem(PC),A0		
-.is_desc_io:
-			bsr display_string_single
-			move.l PCI_RSC_DESC_START(A1),D0
-			add.l PCI_RSC_DESC_OFFSET(A1),D0
-			bsr hex_long
-			lea desc_size(PC),A0
-			bsr display_string_single
-			move.l PCI_RSC_DESC_LENGTH(A1),D0
-			bsr hex_long
-			move.l (SP)+,D0
-.no_infos_desc:
-#endif
 			and.w #FLG_LAST,D0
 			bne.s .next_handle_3
 			add.w PCI_RSC_DESC_NEXT(A1),A1
@@ -1319,14 +1152,6 @@ display_devices:
 .next_handle_2:
 		tst.l D4
 		beq.s .next_slot_display // do not search for multiple devices on bridge
-#if 0
-		move.l D7,D0             // PCIREV
-		swap D0
-		lsr.l #8,D0              // base class code
-		and.l #0xFF,D0
-		cmp.l #PCI_CLASS_DISPLAY,D0
-		beq.s .next_slot_display // do not check for multi-function on graphic card (too big space)
-#endif
 		// do we have a multi-function device?
 		move.l D4,D0             // handle (slot)
 		moveq #PCICLSR,D1
@@ -2482,19 +2307,6 @@ fast_read_config_longword:
 	asl.l D0,D2              // Device Number
 	or.l D1,D2
 	move.l D2,-(SP)
-#if 0 // #ifdef DEBUG
-	lea debug36(PC),A0
-	bsr debug_display_string
-	move.l D2,D0
-	bset #31,D0
-	bsr debug_hex_long
-	moveq #0x20,D0           // " "
-	bsr debug_display_char	 
-	moveq #0x30,D0           // "0"
-	bsr debug_display_char
-	moveq #0x78,D0           // "x"
-	bsr debug_display_char
-#endif
 	bset #31,D2              // Configuration Enable
 	move.l #DMCFGA,D1        // PCI Configuration Address Register for PCI Initiator-to-PCI I/O Config
 	bsr write_local_config_longword
@@ -2521,15 +2333,6 @@ fast_read_config_longword:
 	moveq #PCICSR,D1         // PCI Command / Status Register
 	bsr write_local_config_longword // clear errors
 	move.l (SP)+,D0
-#if 0 // #ifdef DEBUG
-	move.l D0,-(SP)
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.l (SP)+,D0
-#endif
 	rts
 	
 _write_config_byte:
@@ -5076,8 +4879,6 @@ _write_mailbox:
 	moveq #PCI_BAD_REGISTER_NUMBER,D0
 	rts
 
-#if 1 // #ifdef COLDFIRE
-	
 read_local_config_byte:
 
 #ifdef LOCAL_REGISTERS_BIG
@@ -5147,325 +4948,6 @@ write_local_config_longword:
 	move.l D2,(A0,D1.l)
 	moveq #PCI_SUCCESSFUL,D0
 	rts
-
-#else /* ATARI - CTCPI/PLX9054 */
-
-read_local_config_byte:
-
-	lea PCI_LOCAL_CONFIG,A0
-	cmp.l #PLX9054_SWAPPED,(A0)
-	beq.s .read_local_config_byte_little
-	moveq #3,D0
-	eor.l D0,D1              // offset
-.read_local_config_byte_little:
-	move.b (A0,D1.l),D0      // read data
-#if 0 // #ifdef DEBUG
-	move.l D0,-(SP)
-	moveq #0x52,D0
-	bsr debug_display_char
-	move.l (SP),D0
-	bsr debug_hex_byte
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.l (SP)+,D0
-#endif
-	rts
-
-read_local_config_word:
-
-	lea PCI_LOCAL_CONFIG,A0
-	cmp.l #PLX9054_SWAPPED,(A0)
-	beq.s .read_local_config_word_little
-	moveq #2,D0
-	eor.l D0,D1              // offset
-.read_local_config_word_little:
-	move.w (A0,D1.l),D0
-#if 0 // #ifdef DEBUG
-	move.l D0,-(SP)
-	moveq #0x52,D0
-	bsr debug_display_char
-	move.l (SP),D0
-	bsr debug_hex_word
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.l (SP)+,D0
-#endif
-	cmp.l #PLX9054_SWAPPED,(A0)
-	bne.s .read_local_config_word_big
-	ror.w #8,D0              // read data
-.read_local_config_word_big:
-	rts
-
-read_local_config_longword:
-
-	lea PCI_LOCAL_CONFIG,A0
-	move.l (A0,D1.l),D0
-#if 0 // #ifdef DEBUG
-	move.l D0,-(SP)
-	moveq #0x52,D0
-	bsr debug_display_char
-	move.l (SP),D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.l (SP)+,D0
-#endif
-	cmp.l #PLX9054_SWAPPED,(A0)
-	bne.s .read_local_config_longword_big
-	ror.w #8,D0
-	swap D0
-	ror.w #8,D0              // read data
-.read_local_config_longword_big:
-	rts
-	
-write_local_config_byte:
-
-	lea PCI_LOCAL_CONFIG,A0
-	cmp.l #PLX9054_SWAPPED,(A0)
-	beq.s .write_local_config_byte_little
-	moveq #3,D0
-	eor.l D0,D1              // offset
-.write_local_config_byte_little:
-	move.b D2,(A0,D1.l)      // data to write
-#if 0 // #ifdef DEBUG
-	moveq #0x57,D0
-	bsr debug_display_char
-	move.l D2,D0
-	bsr debug_hex_byte
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-	moveq #PCI_SUCCESSFUL,D0
-	rts
-	
-write_local_config_word:
-
-	lea PCI_LOCAL_CONFIG,A0
-	cmp.l #PLX9054_SWAPPED,(A0)
-	beq.s .write_local_config_word_little
-	moveq #2,D0
-	eor.l D0,D1              // offset
-	move.w D2,(A0,D1.l)
-#if 0 // #ifdef DEBUG
-	moveq #0x57,D0
-	bsr debug_display_char
-	move.l D2,D0
-	bsr debug_hex_word
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-	moveq #PCI_SUCCESSFUL,D0
-	rts
-.write_local_config_word_little:
-	ror.w #8,D2              // data to write
-	move.w D2,(A0,D1.l)
-#if 0 // #ifdef DEBUG
-	moveq #0x57,D0
-	bsr debug_display_char
-	move.l D2,D0
-	bsr debug_hex_word
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-	moveq #PCI_SUCCESSFUL,D0
-	rts
-	
-write_local_config_longword:
-
-	lea PCI_LOCAL_CONFIG,A0
-	cmp.l #PLX9054_SWAPPED,(A0)
-	bne.s .write_local_config_longword_big
-	ror.w #8,D2              // data to write
-	swap D2
-	ror.w #8,D2
-.write_local_config_longword_big:
-	move.l D2,(A0,D1.l)
-#if 0 // #ifdef DEBUG
-	moveq #0x57,D0
-	bsr debug_display_char
-	move.l D2,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-	moveq #PCI_SUCCESSFUL,D0
-	rts
-
-write_verify_local_config_byte:
-
-	move.l D1,-(SP)
-	bsr write_local_config_byte
-	move.b (A0,D1.l),D0
-	cmp.b D0,D2
-	beq.s .wvb_ok
-	move.l D0,-(SP)
-	lea plx_error_register(PC),A0
-	bsr display_string
-	move.l 4(SP),D0
-	bsr hex_word
-	lea plx_error_write_value(PC),A0
-	bsr display_string
-	move.l D2,D0
-	bsr hex_byte
-	lea plx_error_read_value(PC),A0
-	bsr display_string
-	move.l (SP)+,D0
-	bsr hex_byte
-	moveq #13,D0
-	bsr display_char
-	moveq #10,D0
-	bsr display_char
-#if 0 // #ifdef DEBUG
-	bsr dump_plx
-#endif
-.wvb_error:
-	bra.s .wvb_error
-.wvb_ok:
-	addq.l #4,SP
-	moveq #PCI_SUCCESSFUL,D0
-	rts
-
-write_verify_local_config_word:
-
-	move.l D1,-(SP)
-	bsr write_local_config_word
-	move.w (A0,D1.l),D0
-	cmp.w D0,D2
-	beq.s .wvw_ok
-	move.l D0,-(SP)
-	lea plx_error_register(PC),A0
-	bsr display_string
-	move.l 4(SP),D0
-	bsr hex_word
-	lea plx_error_write_value(PC),A0
-	bsr display_string
-	move.l D2,D0
-	bsr hex_word
-	lea plx_error_read_value(PC),A0
-	bsr display_string
-	move.l (SP)+,D0
-	bsr hex_word
-	moveq #13,D0
-	bsr display_char
-	moveq #10,D0
-	bsr display_char
-#if 0 // #ifdef DEBUG
-	bsr dump_plx
-#endif
-.wvw_error:
-	bra.s .wvw_error
-.wvw_ok:
-	addq.l #4,SP
-	moveq #PCI_SUCCESSFUL,D0
-	rts
-
-write_verify_local_config_longword:
-
-	move.l D1,-(SP)
-	bsr write_local_config_longword
-	move.l (A0,D1.l),D0
-	cmp.l D0,D2
-	beq.s .wvl_ok
-	move.l D0,-(SP)
-	lea plx_error_register(PC),A0
-	bsr display_string
-	move.l 4(SP),D0
-	bsr hex_word
-	lea plx_error_write_value(PC),A0
-	bsr display_string
-	move.l D2,D0
-	bsr hex_long
-	lea plx_error_read_value(PC),A0
-	bsr display_string
-	move.l (SP)+,D0
-	bsr hex_long
-	moveq #13,D0
-	bsr display_char
-	moveq #10,D0
-	bsr display_char
-#if 0 // #ifdef DEBUG
-	bsr dump_plx
-#endif
-.wvl_error:
-	bra.s .wvl_error
-.wvl_ok:
-	addq.l #4,SP
-	moveq #PCI_SUCCESSFUL,D0
-	rts
-
-#ifdef DEBUG
-
-test_endian_local_config:
-
-	lea PCI_LOCAL_CONFIG,A0
-	cmp.l #PLX9054_SWAPPED,(A0)
-	seq.b D0
-	ext.w D0
-	ext.l D0                 // -1: little, 0: big
-	rts
-
-wait_key:
-
-	lea debug40(PC),A0
-	bsr debug_display_string
-	move.w #1,-(SP)
-	trap #1                  // Cconin
-	addq.l #2,SP
-	cmp.b #0x79,D0           // y
-	rts
-
-#if 0
-dump_plx:
-
-	movem.l D0-D5,-(SP)
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	moveq #15,D4
-	moveq #0,D3
-.loop_dump2:
-		move.l D3,D0
-		bsr debug_hex_word
-		moveq #0x20,D0
-		bsr debug_display_char
-		moveq #0x20,D0
-		bsr debug_display_char
-		moveq #7,D5
-.loop_dump1:
-			move.l D3,D1
-			bsr read_local_config_longword
-			bsr debug_hex_long
-			moveq #0x20,D0
-			bsr debug_display_char
-			addq.l #4,D3
-		dbf D5,.loop_dump1
-		moveq #13,D0
-		bsr debug_display_char
-		moveq #10,D0
-		bsr debug_display_char
-	dbf D4,.loop_dump2
-	movem.l (SP)+,D0-D5
-	rts
-#endif
-
-#endif /* DEBUG */
-
-#endif /* COLDFIRE */
 
 #ifdef CHECK_PARITY
 
@@ -5944,16 +5426,4 @@ parity_error:
 	.byte 13,10
 	.ascii "     |      | detected parity error"
 	.byte 13,10,0
-#endif
-#if 0
-desc_io:
-	.byte 13,10
-	.asciz "     |      | I/O Address "
-desc_mem:
-	.byte 13,10
-	.asciz "     |      | MEM Address "
-desc_size:
-	.asciz " Size "
-_66mhz:
-	.asciz " 66 MHz"
 #endif

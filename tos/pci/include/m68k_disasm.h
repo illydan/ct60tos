@@ -499,13 +499,6 @@ typedef const char *db_sym_t;  /*@@@*/
 #ifndef M68K_DISASM_C
 extern m68k_word *M68k_Disassemble(struct DisasmPara_68k *);
 
-#if 0
-extern void get_modregstr_moto(dis_buffer_t *dbuf, int bit, int mod,
-                               int sz, int dd);
-extern void get_modregstr_mit(dis_buffer_t *dbuf, int bit, int mod,
-                              int sz, int dd));
-extern u_long get_areg_val(int reg);
-#endif
 #endif
 
 #endif /* M68K_DISASM_H */

@@ -85,26 +85,17 @@ void CDECL c_set_colours_8(Virtual *vwk, long start, long entries, unsigned shor
 		{
 			component = *requested++;
 			palette[start + i].vdi.red = component;
-#if 0
-			palette[start + i].hw.red = component;	/* Not at all correct */
-#endif
 			colour = (component * ((1L << red_bits) - 1) + 500L) / 1000;
 			palette[start + i].hw.red = (colour * 1000 + (1L << (red_bits - 1))) / ((1L << red_bits) - 1);
 			tc_word = colour << green_bits;
 			component = *requested++;
 			palette[start + i].vdi.green = component;
-#if 0
-			palette[start + i].hw.green = component;	/* Not at all correct */
-#endif
 			colour = (component * ((1L << green_bits) - 1) + 500L) / 1000;
 			palette[start + i].hw.green = (colour * 1000 + (1L << (green_bits - 1))) / ((1L << green_bits) - 1);
 			tc_word |= colour;			/* Was (colour + colour) */
 			tc_word <<= blue_bits;
 			component = *requested++;
 			palette[start + i].vdi.blue = component;
-#if 0
-			palette[start + i].hw.blue = component;	/* Not at all correct */
-#endif
 			colour = (component * ((1L << blue_bits) - 1) + 500L) / 1000;
 			palette[start + i].hw.blue = (colour * 1000 + (1L << (blue_bits - 1))) / ((1L << blue_bits) - 1);
 			tc_word |= colour;

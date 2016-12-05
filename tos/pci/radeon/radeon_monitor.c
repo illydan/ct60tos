@@ -229,15 +229,6 @@ void radeon_probe_screens(struct radeonfb_info *rinfo,
 		/*
 		 * Auto-detecting display type (well... trying to ...)
 		 */
-#if 0 //#if DEBUG && defined(CONFIG_FB_RADEON_I2C)
-		{
-			unsigned char *EDIDs[4] = { NULL, NULL, NULL, NULL };
-			int mon_types[4] = {MT_NONE, MT_NONE, MT_NONE, MT_NONE};
-			int i;
-			for(i = 0; i < 4; i++)
-				mon_types[i] = radeon_probe_i2c_connector(rinfo, i+1, &EDIDs[i]);
-		}
-#endif /* DEBUG */
 		/*
 		 * Old single head cards
 		 */

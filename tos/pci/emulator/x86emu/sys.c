@@ -106,23 +106,6 @@ u8 X86API rdb(u32 addr)
 	}
 	else
 	{
-#if 0
-		if(addr >= M.mem_size)
-		{
-			DB( { DPRINTVALHEX("mem_ptr: address ", addr);
-			      DPRINT(" out of range!\r\n"); } )
-			    HALT_SYS();
-		}
-#endif
-#if 0
-		if(addr < 0x200)
-		{
-			DPRINTVALHEXWORD("", M.x86.R_CS);
-			DPRINTVALHEXWORD(":", M.x86.R_IP);		
-			DPRINTVALHEX(" updating int vector ", addr >> 2);
-			DPRINT("\r\n");
-		}
-#endif
 		val = *(u8 *)(M.mem_base + addr);
 	}
 	DB(if (DEBUG_MEM_TRACE())
@@ -165,23 +148,6 @@ u16 X86API rdw(u32 addr)
 	}
 	else
 	{
-#if 0
-		if(addr > M.mem_size - 2)
-		{
-			DB( { DPRINTVALHEX("mem_ptr: address ", addr);
-			      DPRINT(" out of range!\r\n"); } )
-			    HALT_SYS();
-		}
-#endif
-#if 0
-		if(addr < 0x200)
-		{
-			DPRINTVALHEXWORD("", M.x86.R_CS);
-			DPRINTVALHEXWORD(":", M.x86.R_IP);		
-			DPRINTVALHEX(" updating int vector ", addr >> 2);
-			DPRINT("\r\n");
-		}
-#endif
 		val = (u16)(*(u8 *)(M.mem_base + addr));
 		val |= (((u16)( *(u8 *)(M.mem_base + addr + 1))) << 8);
 //		val = *(u16 *)(M.mem_base + addr);
@@ -225,23 +191,6 @@ u32 X86API rdl(u32 addr)
 	}
 	else
 	{
-#if 0
-		if(addr > M.mem_size - 4)
-		{
-			DB( { DPRINTVALHEX("mem_ptr: address ", addr);
-			      DPRINT(" out of range!\r\n"); } )
-			    HALT_SYS();
-		}
-#endif
-#if 0
-		if(addr < 0x200)
-		{
-			DPRINTVALHEXWORD("", M.x86.R_CS);
-			DPRINTVALHEXWORD(":", M.x86.R_IP);		
-			DPRINTVALHEX(" updating int vector ", addr >> 2);
-			DPRINT("\r\n");
-		}
-#endif
 		val = swap_long(*(u32 *)(M.mem_base + addr));
 //	  val = *(u32 *)(M.mem_base + addr);
 	}
@@ -285,15 +234,6 @@ void X86API wrb(u32 addr, u8 val)
 			      DPRINT(" out of range!\r\n"); } )
 			    HALT_SYS();
 		}
-#if 0
-		if(addr < 0x200)
-		{
-			DPRINTVALHEXWORD("", M.x86.R_CS);
-			DPRINTVALHEXWORD(":", M.x86.R_IP);		
-			DPRINTVALHEX(" updating int vector ", addr >> 2);
-			DPRINT("\r\n");
-		}
-#endif
 		*(u8 *)(M.mem_base + addr) = val;
 	}
 	DB(if (DEBUG_MEM_TRACE())
@@ -335,15 +275,6 @@ void X86API wrw(u32 addr, u16 val)
 			      DPRINT(" out of range!\r\n"); } )
 			    HALT_SYS();
 		}
-#if 0
-		if(addr < 0x200)
-		{
-			DPRINTVALHEXWORD("", M.x86.R_CS);
-			DPRINTVALHEXWORD(":", M.x86.R_IP);		
-			DPRINTVALHEX(" updating int vector ", addr >> 2);
-			DPRINT("\r\n");
-		}
-#endif
 		*(u8 *)(M.mem_base + addr) = (u8)val;
 		*(u8 *)(M.mem_base + addr + 1) = (u8)(val >> 8);
 //		*(u16 *)(M.mem_base + addr) = val;
@@ -387,15 +318,6 @@ void X86API wrl(u32 addr, u32 val)
 			      DPRINT(" out of range!\r\n"); } )
 			    HALT_SYS();
 		}
-#if 0
-		if(addr < 0x200)
-		{
-			DPRINTVALHEXWORD("", M.x86.R_CS);
-			DPRINTVALHEXWORD(":", M.x86.R_IP);		
-			DPRINTVALHEX(" updating int vector ", addr >> 2);
-			DPRINT("\r\n");
-		}
-#endif
 		*(u32 *)(M.mem_base + addr) = swap_long(val);
 //		*(u32 *)(M.mem_base + addr) = val;
 	}
@@ -534,46 +456,6 @@ void (X86APIP sys_outw) (X86EMU_pioAddr addr, u16 val) = p_outw;
 void (X86APIP sys_outl) (X86EMU_pioAddr addr, u32 val) = p_outl;
 
 /*----------------------------- Setup -------------------------------------*/
-
-#if 0 // cannot works whith data in flash
-/****************************************************************************
-PARAMETERS:
-funcs	- New memory function pointers to make active
-
-REMARKS:
-This function is used to set the pointers to functions which access
-memory space, allowing the user application to override these functions
-and hook them out as necessary for their application.
-****************************************************************************/
-void X86EMU_setupMemFuncs(X86EMU_memFuncs * funcs)
-{
-	sys_rdb = funcs->rdb;
-	sys_rdw = funcs->rdw;
-	sys_rdl = funcs->rdl;
-	sys_wrb = funcs->wrb;
-	sys_wrw = funcs->wrw;
-	sys_wrl = funcs->wrl;
-}
-
-/****************************************************************************
-PARAMETERS:
-funcs	- New programmed I/O function pointers to make active
-
-REMARKS:
-This function is used to set the pointers to functions which access
-I/O space, allowing the user application to override these functions
-and hook them out as necessary for their application.
-****************************************************************************/
-void X86EMU_setupPioFuncs(X86EMU_pioFuncs * funcs)
-{
-	sys_inb = funcs->inb;
-	sys_inw = funcs->inw;
-	sys_inl = funcs->inl;
-	sys_outb = funcs->outb;
-	sys_outw = funcs->outw;
-	sys_outl = funcs->outl;
-}
-#endif
 
 /****************************************************************************
 PARAMETERS:

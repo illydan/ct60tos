@@ -65,37 +65,6 @@ begin5:
 	jsr	get_font_6x6_a3
 end5:
 
-#if 0        // not used since conout.S exist
-	// copy of headers for v_opnwk
-	.globl	get_font_8x8_a1
-
-	.align	2
-	.long	0x00010D5E	/* offset ROM */
-	.long	end6-begin6
-begin6:
-	jsr	get_font_8x8_a1
-end6:
-
-	.globl	get_font_8x16_a1
-
-	.align	2
-	.long	0x00010D72	/* offset ROM */
-	.long	end8-begin8
-begin8:
-	jsr	get_font_8x16_a1
-end8:
-
-	.globl	get_font_8x16_a1b
-
-	.align	2
-	.long	0x00010D86	/* offset ROM */
-	.long	end10-begin10
-begin10:
-	jsr	get_font_8x16_a1b
-end10:
-
-#endif
-
 	.align	2
 	.long	0x00010F8E	/* offset ROM */
 	.long	end7-begin7

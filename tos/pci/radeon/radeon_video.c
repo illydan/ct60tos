@@ -804,48 +804,6 @@ int RADEONPutVideo(struct radeonfb_info *rinfo, int src_x, int src_y, int src_w,
 	}
 //	if(!(rinfo->videoStatus & CLIENT_VIDEO_ON))
 //		vixPlaybackOn();
-#if 0
-	/* update cliplist */
-	if(!REGION_EQUAL(pScrn->pScreen, &pPriv->clip, clipBoxes))
-	{
-		REGION_COPY(pScrn->pScreen, &pPriv->clip, clipBoxes);
-		/* draw these */
-	}
-//	RADEONDisplayVideo(rinfo, pPriv, id, offset1+top*srcPitch, offset2+top*srcPitch, offset3+top*srcPitch, offset4+top*srcPitch, width, height, dstPitch*mult/2,
-//                     xa, xb, ya, &dstBox, src_w, src_h*mult/2, drw_w, drw_h, pPriv->overlay_deinterlacing_method);
-#endif
-#if 0
-	RADEONWaitForFifo(rinfo, 1);
-	OUTREG(OV0_REG_LOAD_CNTL, REG_LD_CTL_LOCK);
-	RADEONWaitForIdleMMIO(rinfo);
-	while(!(INREG(OV0_REG_LOAD_CNTL) & REG_LD_CTL_LOCK_READBACK));
-	switch(rinfo->overlay_deinterlacing_method)
-	{
-		case METHOD_BOB:
-			OUTREG(OV0_DEINTERLACE_PATTERN, 0xAAAAA);
-			OUTREG(OV0_AUTO_FLIP_CNTL, /* OV0_AUTO_FLIP_CNTL_SOFT_BUF_ODD | */ OV0_AUTO_FLIP_CNTL_SHIFT_ODD_DOWN);
-			break;
-		case METHOD_SINGLE:
-			OUTREG(OV0_DEINTERLACE_PATTERN, 0xEEEEE | (9<<28));
-			OUTREG(OV0_AUTO_FLIP_CNTL, OV0_AUTO_FLIP_CNTL_SOFT_BUF_ODD | OV0_AUTO_FLIP_CNTL_SHIFT_ODD_DOWN);
-			break;
-		case METHOD_WEAVE:
-			OUTREG(OV0_DEINTERLACE_PATTERN, 0x11111 | (9<<28));
-			OUTREG(OV0_AUTO_FLIP_CNTL, OV0_AUTO_FLIP_CNTL_SOFT_BUF_ODD | OV0_AUTO_FLIP_CNTL_P1_FIRST_LINE_EVEN 
-			 /* | OV0_AUTO_FLIP_CNTL_SHIFT_ODD_DOWN | OV0_AUTO_FLIP_CNTL_SHIFT_EVEN_DOWN */
-			 | OV0_AUTO_FLIP_CNTL_FIELD_POL_SOURCE);
-			break;
-		default:
-			OUTREG(OV0_DEINTERLACE_PATTERN, 0xAAAAA);
-			OUTREG(OV0_AUTO_FLIP_CNTL, OV0_AUTO_FLIP_CNTL_SOFT_BUF_ODD | OV0_AUTO_FLIP_CNTL_SHIFT_ODD_DOWN);
-	}
-	RADEONWaitForIdleMMIO(rinfo);
-	OUTREG(OV0_AUTO_FLIP_CNTL, (INREG(OV0_AUTO_FLIP_CNTL) ^ OV0_AUTO_FLIP_CNTL_SOFT_EOF_TOGGLE ));
-	OUTREG(OV0_AUTO_FLIP_CNTL, (INREG(OV0_AUTO_FLIP_CNTL) ^ OV0_AUTO_FLIP_CNTL_SOFT_EOF_TOGGLE ));
-	OUTREG(OV0_REG_LOAD_CNTL, 0);
-	/* OUTREG(OV0_FLAG_CNTL, 8); */
-	/* OUTREG(OV0_SCALE_CNTL, 0x417f1B00); */
-#endif
 
 	rinfo->videoStatus = CLIENT_VIDEO_ON;
 	rinfo->video_stream_active = TRUE;

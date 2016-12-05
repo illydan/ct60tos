@@ -1421,16 +1421,6 @@ long vmalloc(long mode, long value)
 
 long InitVideo(void)
 {
-#if 0 // #ifndef TEST_NOPCI
-	RADEONInitVideo(rinfo_fvdi);
-	Cconin();	
-	RADEONPutVideo(rinfo_fvdi, 0, 0, 720, 576, 0, 0, 640, 512);
-	Cconin();
-	RADEONStopVideo(rinfo_fvdi, 1);	
-	Cconin();
-	RADEONShutdownVideo(rinfo_fvdi);
-	Cconin();	
-#endif
 	return(0);
 }
 

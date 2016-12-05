@@ -154,20 +154,6 @@
 #define OFFSET    0x0E
 #define RANGEWORD 0x37
 #define WRITEE2   0x3F
-#if 0
-// DS1085Z-10
-#define BASE_FREQ  61400 // KHz
-#define DEF_FREQ   97100 // KHz
-#define DAC_STEP      10 // KHz
-#define DAC_DEF      500
-#define OFFSET_STEP 5120 // KHz
-// DS1085Z-25
-#define BASE_FREQ  51200 // KHz
-#define DEF_FREQ  104600 // KHz
-#define DAC_STEP      25 // KHz
-#define DAC_DEF      600
-#define OFFSET_STEP 6400 // KHz
-#endif
 // DS1085Z-50
 #define BASE_FREQ  38400 // KHz
 #define DEF_FREQ  101800 // KHz
@@ -531,17 +517,6 @@ init_sdram:
 	link A6,#-6
 	bsr measure_cpu_frequency
 	move.l D0,-4(A6)         // CPU frequency in MHz * 10
-#if 0
-	cmp.l #750,D0
-	bcs.s .lower_75mhz
-	move.l #0x5F504349,D0    // cookie _PCI
-	bsr get_cookie
-	move.l A0,D0
-	beq.s .lower_75mhz       // no CTPCI registers
-	moveq #ITF,D0            // IDE Fast Timmings
-	move.l D0,_itf           // CTPCI
-.lower_75mhz:
-#endif
 	move.l #0x43543630,D0    // CT60
 	bsr get_cookie
 	move.l A0,D0
@@ -3389,24 +3364,6 @@ read_sectors: 	// A0: buffer, D0: drive, D0.H: flag swap bytes, D1: count, D2.L:
 	bsr swap_buffer
 	move.l (SP)+,D0
 .end_read_sectors_swap:
-#if 0 // #ifdef DEBUG
-	tst.l D0
-	bmi.s .error_sectors_read
-	move.l D0,-(SP)
-	ext.l D3
-	bra.s .end_dump_sectors_read
-.loop_dump_sectors_read:
-		move.l A4,A1
-		moveq #31,D1
-		bsr dump
-		bsr wait_key
-		lea 512(A4),A4
-.end_dump_sectors_read:
-	subq.l #1,D3
-	bpl.s .loop_dump_sectors_read
-.error_sectors_read:
-	move.l (SP)+,D0
-#endif	
 	tst.l D0
 	movem.l (SP)+,D1-D4/A0-A4
 	rts
@@ -3466,24 +3423,6 @@ write_sectors: 	// A0: buffer, D0: drive, D0.H: flag swap bytes, D1: count, D2.L
 	bsr swap_buffer
 	move.l (SP)+,D0
 .end_write_sectors_swap:
-#if 0 // #ifdef DEBUG
-	tst.l D0
-	bmi.s .error_sectors_write
-	move.l D0,-(SP)
-	ext.l D3
-	bra.s .end_dump_sectors_write
-.loop_dump_sectors_write:
-		move.l A4,A1
-		moveq #31,D1
-		bsr dump
-		bsr wait_key
-		lea 512(A4),A4
-.end_dump_sectors_write:
-	subq.l #1,D3
-	bpl.s .loop_dump_sectors_write
-.error_sectors_write:
-	move.l (SP)+,D0
-#endif	
 	tst.l D0
 	movem.l (SP)+,D1-D4/A0-A4
 	rts
@@ -3790,30 +3729,6 @@ ide_cmd: 	// D0.L: bytes, A0: IDE buffer, A1: cmd buffer
 #ifndef USE_ATARI_IO
 	lea -16(SP),SP
 	movem.l D2-D3/A0-A1,(SP)
-#if 0 // #ifdef DEBUG
-#ifndef MCF5445X
-//	bsr debug_ide
-#endif
-	move.l D0,-(SP)
-	move.l A0,D0
-	bsr debug_hex_long
-	moveq #0x20,D0
-	bsr debug_display_char
-	moveq #0,D2
-.ir00:
-		move.b (A1,D2),D0
-		bsr debug_hex_byte
-		moveq #0x20,D0
-		bsr debug_display_char
-	add.l #1,D2
-	cmp.l #7,D2
-	bcs.s .ir00
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.l (SP)+,D0
-#endif /* DEBUG */
 	moveq #-1,D2
 	move.b D2,flock
 	move.l D0,D2             // 0: non-data
@@ -4051,7 +3966,6 @@ ide_cmd: 	// D0.L: bytes, A0: IDE buffer, A1: cmd buffer
 #ifndef USE_ATARI_IO
 #ifdef DEBUG
 //	bsr debug_ide
-#if 1
 	tst.l D0
 	beq.s .ir0
 	move.l D0,-(SP)
@@ -4072,7 +3986,6 @@ ide_cmd: 	// D0.L: bytes, A0: IDE buffer, A1: cmd buffer
 	moveq #10,D0
 	bsr debug_display_char
 	move.l (SP)+,D0
-#endif
 #endif
 #endif
 .ir0:
@@ -4476,24 +4389,9 @@ error_tos:
 
 wait_key:
 
-#if 0 // #ifdef COLDFIRE
-	lea -16(SP),SP
-	movem.l D1-D2/A1-A2,(SP)
-#ifdef DEBUG
-	move.w #1,-(SP)          // AUX
-#else
-	move.w #2,-(SP)          // CON
-#endif
-	move.w #2,-(SP)          // Bconin
-	trap #13
-	addq.l #4,SP
-	movem.l (SP),D1-D2/A1-A2
-	lea 16(SP),SP
-#else
 	move.w #7,-(SP)          // Crawcin
 	trap #1
 	addq.l #2,SP
-#endif
 	rts
 
 test_key:

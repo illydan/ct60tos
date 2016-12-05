@@ -43,18 +43,6 @@ void CDECL c_get_colours_16(Virtual *vwk, long colour, long *foreground, long *b
 			back_pal = global_palette;
 	}
 	
-#if 0 // #ifdef DEBUG
-	display_string("c_get_colours_16: local_palette ");
-	hex_long(local_palette);
-	display_string(" global_palette ");
-	hex_long(global_palette);
-	display_string(" fore_pal ");
-	hex_long(fore_pal);
-	display_string(" back_pal ");
-	hex_long(back_pal);
-	display_string("\r\n");
-#endif
-
 	*foreground = (unsigned long)(*(unsigned short *)&fore_pal[(short)colour].real);
 	*background = (unsigned long)(*(unsigned short *)&back_pal[colour >> 16].real);
 }

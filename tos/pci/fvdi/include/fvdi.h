@@ -131,14 +131,10 @@ typedef struct {
    long reserved2;
    long reserved3;
    long reserved4;
-#if 1
 #if defined(__GNUC__) || defined (__LATTICE__)
    COLOR_ENTRY colors[0];
 #else
    COLOR_ENTRY colors[];
-#endif
-#else
-   COLOR_ENTRY colors;   /* Really beginning of an array of COLOR_ENTRY */
 #endif
 } COLOR_TAB;
 

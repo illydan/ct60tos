@@ -240,14 +240,6 @@ m68k_word *M68k_Disassemble(struct DisasmPara_68k *dp)
   }
   copy(asm_buffer,dp->opcode);
 
-#if 0  /* Symbol information ? */
-  printf("\t%s",asm_buffer);
-  if (info_buffer[0]) 
-    printf("\t[%s]\n",info_buffer);
-  else
-    printf("\n");
-#endif
-
   return (dp->instr + dbuf.used);
 }
 
@@ -3042,10 +3034,6 @@ void print_disp(dis_buffer_t *dbuf, int disp, int sz, int rel, int dd)
     prints(dbuf, disp, sz);
   }
     
-#if 0
-  diff = INT_MAX;
-  symname = NULL;
-#endif
   if (dbuf->dp->find_symbol) {
     if ((symname = dbuf->dp->find_symbol(nv,&diff))!=NULL) {
       iaddstr(dbuf, "disp:");
@@ -3064,10 +3052,6 @@ void print_addr(dis_buffer_t *dbuf, u_long addr)
   u_long diff;
   char *symname;
         
-#if 0
-  diff = INT_MAX;
-  symname = NULL;
-#endif
   if (dbuf->dp->find_symbol) {
     if ((symname = dbuf->dp->find_symbol(addr,&diff))!=NULL) {
       if (diff == 0)

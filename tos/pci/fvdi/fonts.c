@@ -176,9 +176,6 @@ long insert_font(Fontheader **first_font, Fontheader *new_font)
       new_font->next = 0;
       new_font->extra.first_size = last_font->extra.first_size;
       last_font->extra.next_size = new_font;
-#if 0
-      last_font->next = 0;     /* Should already be that, right? */
-#endif
       return 0;
    }
 

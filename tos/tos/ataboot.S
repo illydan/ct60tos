@@ -1378,33 +1378,6 @@ lb4:
 	moveq	#0,D0
 	movec	D0,CACR
 lb3:
-#if 0                                    // removed for TOS in RAM
-	moveq	#0xC,D0        // disable_mmu
-	and.l	D1,D0          // bi_cputype
-	beq.s	lb2
-	moveq	#0,D0          // 68040/60
-	movec	D0,TC
-	move.l	#0x807FE040,D0 // cache inhibit precise
-	movec	D0,ITT0
-	movec	D0,DTT0
-	move.l	#0x007FE040,D0
-	movec	D0,ITT1
-	movec	D0,DTT1
-	bra.s	lb1
-lb2:
-	subq.l	#4,SP
-	pmove	TC,(SP)
-	bclr	#7,(SP)
-	pmove	(SP),TC
-	addq.l	#4,SP
-	btst	#1,D1
-	beq.s	lb1
-	clr.l	-(SP)
-	pmove	(SP),TT0
-	pmove	(SP),TT1
-	addq.l	#4,SP
-lb1:
-#endif
 	clr.l	resvalid.w
 	lea	copyall(PC),A0
 	lea	copyallend(PC),A1
@@ -2664,41 +2637,7 @@ copyallend:
 
 test_cpu_type:
 
-#if 0        // we have a 68060
-	movem.l	D2/A2,-(SP)
-	movea.l	ev_f_line.w,A0
-	movea.l	SP,A1
-	move	SR,D2
-	ori	#0x700,SR
-	moveq	#20,D0
-	lea	tc2(PC),A2
-	move.l	A2,ev_f_line.w
-	movea.l	A3,A2
-	nop
-	pmove	TT0,(A2)
-	nop
-	moveq	#30,D0
-	bra	tc1
-tc2:
-	lea	tc1(PC),A2
-	move.l	A2,ev_f_line.w
-	movea.l	A3,A2
-	nop
-	move16	(A2)+,(A2)+
-	nop
-	moveq	#40,D0
-	nop
-	.short	0xf5ca // plpar (A2)
-	nop
-#endif
 	moveq	#60,D0
-#if 0
-tc1:
-	movea.l	A1,SP
-	move.l	A0,ev_f_line.w
-	move	D2,SR
-	movem.l	(SP)+,D2/A2
-#endif
 	rts
 
 test_software_fpu:

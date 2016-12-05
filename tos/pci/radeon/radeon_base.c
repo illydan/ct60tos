@@ -895,11 +895,6 @@ int radeonfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		case 9 ... 16:
 			v.bits_per_pixel = 16;
 			break;
-#if 0 /* Doesn't seem to work */
-		case 17 ... 24:
-			v.bits_per_pixel = 24;
-			break;
-#endif			
 		case 25 ... 32:
 			v.bits_per_pixel = 32;
 			break;
@@ -1287,32 +1282,6 @@ static void radeon_write_pll_regs(struct radeonfb_info *rinfo, struct radeon_reg
 	int i;
 	DPRINT("radeonfb: radeon_write_pll_regs\r\n");
 	radeon_fifo_wait(20);
-#if 0
-	/* Workaround from XFree */
-	if(rinfo->is_mobility)
-	{
-	   /* A temporal workaround for the occational blanking on certain laptop
-		 * panels. This appears to related to the PLL divider registers
-		 * (fail to lock?). It occurs even when all dividers are the same
-		 * with their old settings. In this case we really don't need to
-		 * fiddle with PLL registers. By doing this we can avoid the blanking
-		 * problem with some panels.
-	         */
-		if((mode->ppll_ref_div == (INPLL(PPLL_REF_DIV) & PPLL_REF_DIV_MASK))
-		 && (mode->ppll_div_3 == (INPLL(PPLL_DIV_3) & (PPLL_POST3_DIV_MASK | PPLL_FB3_DIV_MASK))))
-		{
-			/* We still have to force a switch to selected PPLL div thanks to
-			 * an XFree86 driver bug which will switch it away in some cases
-			 * even when using UseFDev */
-			OUTREGP(CLOCK_CNTL_INDEX,
-				mode->clk_cntl_index & PPLL_DIV_SEL_MASK,
-				~PPLL_DIV_SEL_MASK);
-			radeon_pll_errata_after_index(rinfo);
-			radeon_pll_errata_after_data(rinfo);
-            		return;
-		}
-	}
-#endif
 	/* Swich VCKL clock input to CPUCLK so it stays fed while PPLL updates*/
 	OUTPLLP(VCLK_ECP_CNTL, VCLK_SRC_SEL_CPUCLK, ~VCLK_SRC_SEL_MASK);
 	/* Reset PPLL & enable atomic update */
@@ -1524,7 +1493,6 @@ static void radeon_calc_pll_regs(struct radeonfb_info *rinfo, struct radeon_regs
 	 * not sure which model starts having FP2_GEN_CNTL, I assume anything more
 	 * recent than an r(v)100...
 	 */
-#if 1
 	/* XXX I had reports of flicker happening with the cinema display
 	 * on TMDS1 that seem to be fixed if I also forbit odd dividers in
 	 * this case. This could just be a bandwidth calculation issue, I
@@ -1567,9 +1535,6 @@ static void radeon_calc_pll_regs(struct radeonfb_info *rinfo, struct radeon_regs
 		uses_dvo = 1;
 		break;
 	}
-#else
-	uses_dvo = 1;
-#endif
 	if(freq > rinfo->pll.ppll_max)
 		freq = rinfo->pll.ppll_max;
 	if(freq*12 < rinfo->pll.ppll_min)
@@ -1832,13 +1797,6 @@ int radeonfb_set_par(struct fb_info *info)
 	/* do it! */
 	if(!rinfo->asleep)
 	{
-#if 0
-		if(debug)
-		{
-			DPRINT("Press a key for write the video mode...\r\n");
-			Bconin(2);
-		}
-#endif
 		memcpy(&rinfo->state, newmode, sizeof(*newmode));
 #ifdef RADEON_TILING
 		rinfo->tilingEnabled = (mode->vmode & (FB_VMODE_DOUBLE | FB_VMODE_INTERLACED)) ? FALSE : TRUE;
@@ -2151,7 +2109,6 @@ int radeonfb_pci_register(long handle, const struct pci_device_id *ent)
 			run_bios(rinfo);
 #endif
 
-#if 1
 	DPRINT("radeonfb: radeonfb_pci_register: fixup display base address\r\n");
 	OUTREG(MC_FB_LOCATION, 0x7fff0000);
 	rinfo->fb_local_base = 0;
@@ -2162,9 +2119,6 @@ int radeonfb_pci_register(long handle, const struct pci_device_id *ent)
 	if(rinfo->has_CRTC2)
 		OUTREG(CRTC2_DISPLAY_BASE_ADDR, 0);
 	OUTREG(OV0_BASE_ADDR, 0);
-#else
-	rinfo->fb_local_base = INREG(MC_FB_LOCATION) << 16;
-#endif
 
 	/* Get VRAM size and type */
 	DPRINT("radeonfb: radeonfb_pci_register: get VRAM size\r\n");
@@ -2255,41 +2209,5 @@ int radeonfb_pci_register(long handle, const struct pci_device_id *ent)
 	rinfo->tunerType=-1;
 	return(0);
 }
-
-#if 0
-
-void radeonfb_pci_unregister(void)
-{
-	struct fb_info *info;
-	struct radeonfb_info *rinfo = rinfo_fvdi;
-	void (**func_vbl)(void);
-	info = rinfo_fvdi->info;
-	int i;
-//	radeonfb_pm_exit(rinfo);
-	i = (int)*nvbls;
-	func_vbl = *_vblqueue;
-	while(--i > 0)
-	{
-	  if(*func_vbl != NULL)
-	  {
-			if(*func_vbl == radeon_timer_func)
-				*func_vbl = NULL;
-     	break;
-		}
-	  func_vbl++;
-	}	
-	if(rinfo->mon1_EDID!=NULL)
-		Funcs_free(rinfo->mon1_EDID);
-	if(rinfo->mon2_EDID!=NULL)
-		Funcs_free(rinfo->mon2_EDID);
-	if(rinfo->mon1_modedb)
-		fb_destroy_modedb(rinfo->mon1_modedb);
-#ifdef CONFIG_FB_RADEON_I2C
-	radeon_delete_i2c_busses(rinfo);
-#endif        
-	framebuffer_release(info);
-}
-
-#endif
 
 

@@ -291,12 +291,6 @@ static long free(void *addr)
 
 static int puts(const char *text)
 {
-#if 0 // #ifdef COLDFIRE
-#ifdef DEBUG
-	extern void display_string(char *string);
-	display_string(text);
-#endif
-#endif
 	while(*text)
 		Bconout(2,*text++);
 	return(1);
