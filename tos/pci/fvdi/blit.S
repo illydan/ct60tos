@@ -45,12 +45,7 @@
 *	d5	Pattern
 */
 _default_fill:
-#ifdef COLDFIRE
-	lea	-40(a7),a7
-	movem.l	d1-d7/a0-a2,(a7)
-#else
 	movem.l	d1-d7/a0-a2,-(a7)
-#endif
 
 	move.w	a0,d7
 	and.w	#1,d7
@@ -94,12 +89,7 @@ _default_fill:
 	ble	.loopy_sl
 
 .end_default_fill:
-#ifdef COLDFIRE
-	movem.l	(a7),d1-d7/a0-a2
-	lea	40(a7),a7
-#else
 	movem.l	(a7)+,d1-d7/a0-a2
-#endif
 	rts
 
 .table_lfill:
@@ -319,51 +309,24 @@ lib_vr_trn_fm:
 	move.l	a3,a5
 
 	move.w	d0,d7
-#ifdef COLDFIRE
-	ext.l	d7
-	subq.l	#1,d7
-#else
 	subq.w	#1,d7
-#endif
 
 .loop1_1:
 	move.w	d1,d6
-#ifdef COLDFIRE
-	ext.l	d6
-	subq.l	#1,d6
-#else
 	subq.w	#1,d6
-#endif
 
 .loop2_2:
 	move.w	d2,d5
-#ifdef COLDFIRE
-	ext.l	d5
-	subq.l	#1,d5
-#else
 	subq.w	#1,d5
-#endif
 
 .loop3_3:
 	move.w	(a3),(a4)+
 	add.l	d3,a3
-#ifdef COLDFIRE
-	subq.l	#1,d5
-	bpl.s	.loop3_3
-#else
 	ldbra	d5,.loop3_3
-#endif
 	addq.l	#2,a5
 	move.l	a5,a3
-#ifdef COLDFIRE
-	subq.l	#1,d6
-	bpl.s	.loop2_2
-	subq.l	#1,d7
-	bpl.s	.loop1_1
-#else
 	ldbra	d6,.loop2_2
 	ldbra	d7,.loop1_1
-#endif
 	bra	finish_up
 
 
@@ -413,33 +376,15 @@ to_standard_8:
 	move.l	a4,a5
 
 	move.w	d6,d1
-#ifdef COLDFIRE
-	ext.l	d1
-	ext.l	d0
-	subq.l	#1,d0
-#else
 	subq.w	#1,d0
-#endif
 
 .loop0b_0:
-#ifdef COLDFIRE
-	move.l	d0,-(sp)
-	moveq	#0,d0
-	move.w	mfdb_wdwidth(a1),d0
-	subq.l	#1,d0			// d1 = width - 1
-#else
 	swap	d0
 	move.w	mfdb_wdwidth(a1),d0
 	subq.w	#1,d0
-#endif
 
 .loop1b_1:
-#ifdef COLDFIRE
-	movem.l	(a3),d2-d5
-	lea	16(a3),a3
-#else
 	movem.l	(a3)+,d2-d5
-#endif
 	movem.l	d2-d5,(a6)
 	moveq	#7,d3		// Was 15
 
@@ -448,43 +393,20 @@ to_standard_8:
 
 .loop3b_3:
 	move.b	0(a6,d4),d5	// Was .w
-#ifdef COLDFIRE
-	asl.l	#8,D5
-	swap	d5
-	swap	d6
-	add.l	d5,d5
-	addx.l	d6,d6
-	swap	d5
-	swap	d6
-	lsr.l	#8,d5
-#else	
 	add.b	d5,d5		// Was .w
 	addx.w	d6,d6		// Was .b
-#endif
 	move.b	d5,0(a6,d4)	// Was .w
 	subq.l	#1,d4		// Was 2
 	lbpl	.loop3b_3
 	move.w	d6,(a4)		// Was .b
 	add.l	d7,a4
 
-#ifdef COLDFIRE
-	subq.l 	#1,d3
-	bpl.s	.loop2b_2
-	add.l	d1,a5
-	move.l	a5,a4
-	subq.l	#1,d0
-	bpl.s	.loop1b_1
-	move.l	(sp)+,d0
-	subq.l	#1,d0
-	bpl.s	.loop0b_0
-#else
 	ldbra	d3,.loop2b_2
 	add.w	d1,a5
 	move.l	a5,a4
 	ldbra	d0,.loop1b_1
 	swap	d0
 	ldbra	d0,.loop0b_0
-#endif
 
 	lea	16(sp),sp
 	rts
@@ -496,40 +418,18 @@ to_standard_16:
 	move.l	a4,a5
 
 	move.w	d6,d1
-#ifdef COLDFIRE
-	ext.l	d1
-	ext.l	d0
-	subq.l	#1,d0
-#else
 	subq.w	#1,d0			// d0 = height - 1
-#endif
 
 .loop_0_0:
-#ifdef COLDFIRE
-	move.l	d0,-(sp)
-	moveq	#0,d0
-	move.w	mfdb_wdwidth(a1),d0
-	subq.l	#1,d0			// d1 = width - 1
-#else
 	swap	d0
 	move.w	mfdb_wdwidth(a1),d0
 	subq.w	#1,d0			// d1 = width - 1
-#endif
 
 .loop_1_1:
-#ifdef COLDFIRE
-	movem.l	(a3),d2-d5		// Copy 16 words due to bad dechunky routine
-	lea	16(a3),a3
-	movem.l	d2-d5,(a6)
-	movem.l	(a3),d2-d5
-	lea	16(a3),a3
-	movem.l	d2-d5,16(a6)
-#else
 	movem.l	(a3)+,d2-d5		// Copy 16 words due to bad dechunky routine
 	movem.l	d2-d5,(a6)
 	movem.l	(a3)+,d2-d5
 	movem.l	d2-d5,16(a6)
-#endif
 	moveq	#15,d3			// d3 = bitplanes - 1 
 
 .loop_2_2:
@@ -537,43 +437,20 @@ to_standard_16:
 
 .loop_3_3:
 	move.w	0(a6,d4),d5
-#ifdef COLDFIRE
-	swap	d5
-	add.l	d5,d5
-	move.w	d6,d5
-	addx.l	d6,d6
-	swap	d6
-	move.w	d5,d6
-	swap	d5
-	lsr.l	#1,d6
-#else
 	add.w	d5,d5
 	roxr.w	#1,d6		// This _is_ the right one!
-#endif
 	move.w	d5,0(a6,d4)
 	subq.l	#2,d4
 	lbpl	.loop_3_3
 	move.w	d6,(a4)
 	add.l	d7,a4
 
-#ifdef COLDFIRE
-	subq.l 	#1,d3
-	bpl.s	.loop_2_2
-	add.l	d1,a5
-	move.l	a5,a4
-	subq.l	#1,d0
-	bpl.s	.loop_1_1
-	move.l	(sp)+,d0
-	subq.l	#1,d0
-	bpl.s	.loop_0_0
-#else
 	ldbra	d3,.loop_2_2
 	add.w	d1,a5
 	move.l	a5,a4
 	ldbra	d0,.loop_1_1
 	swap	d0
 	ldbra	d0,.loop_0_0
-#endif
 	lea	32(sp),sp
 	rts
 
@@ -584,41 +461,14 @@ to_standard_32:
 	move.l	a4,a5
 
 	move.w	d6,d1
-#ifdef COLDFIRE
-	ext.l	d1
-	ext.l	d0
-	subq.l	#1,d0
-#else
 	subq.w	#1,d0			// d0 = height - 1
-#endif
 
 .loop0c_0:
-#ifdef COLDFIRE
-	move.l	d0,-(sp)
-	moveq	#0,d0
-	move.w	mfdb_wdwidth(a1),d0
-	subq.l	#1,d0			// d1 = width - 1
-#else
 	swap	d0
 	move.w	mfdb_wdwidth(a1),d0
 	subq.w	#1,d0
-#endif
 
 .loop1c_1:
-#ifdef COLDFIRE
-	movem.l	(a3),d2-d5
-	lea	16(a3),a3
-	movem.l	d2-d5,(a6)
-	movem.l	(a3),d2-d5
-	lea	16(a3),a3
-	movem.l	d2-d5,16(a6)
-	movem.l	(a3),d2-d5
-	lea	16(a3),a3
-	movem.l	d2-d5,32(a6)
-	movem.l	(a3),d2-d5
-	lea	16(a3),a3
-	movem.l	d2-d5,48(a6)
-#else
 	movem.l	(a3)+,d2-d5
 	movem.l	d2-d5,(a6)
 	movem.l	(a3)+,d2-d5
@@ -627,7 +477,6 @@ to_standard_32:
 	movem.l	d2-d5,32(a6)
 	movem.l	(a3)+,d2-d5
 	movem.l	d2-d5,48(a6)
-#endif
 	moveq	#31,d3		// Was 15
 
 .loop2c_2:
@@ -636,37 +485,19 @@ to_standard_32:
 .loop3c_3:
 	move.l	0(a6,d4),d5	// Was .w
 	add.l	d5,d5		// Was .w
-#ifdef COLDFIRE
-	swap d6
-             addx.l	d6,d6
-             swap	d6
-#else
 	addx.w	d6,d6		// Was .l
-#endif
 	move.l	d5,0(a6,d4)	// Was .w
 	subq.l	#4,d4		// Was 2
 	lbpl	.loop3c_3
 	move.w	d6,(a4)		// Was .l
 	add.l	d7,a4
 
-#ifdef COLDFIRE
-	subq.l 	#1,d3
-	bpl.s	.loop2c_2
-	add.l	d1,a5
-	move.l	a5,a4
-	subq.l	#1,d0
-	bpl.s	.loop1c_1
-	move.l	(sp)+,d0
-	subq.l	#1,d0
-	bpl.s	.loop0c_0
-#else
 	ldbra	d3,.loop2c_2
 	add.w	d1,a5
 	move.l	a5,a4
 	ldbra	d0,.loop1c_1
 	swap	d0
 	ldbra	d0,.loop0c_0
-#endif
 
 	lea	64(sp),sp
 	rts

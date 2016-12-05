@@ -60,9 +60,6 @@
 #include "radeonfb.h"
 #include "edid.h"
 #include "ati_ids.h"
-#ifdef COLDFIRE
-#include "../../include/fire.h"
-#endif
 
 typedef struct
 {
@@ -255,78 +252,6 @@ short zoom_mouse=1;
 
 long time_out;
 
-#ifdef COLDFIRE
-
-#ifdef MCF5445X
-
-void udelay(long usec)
-{
-	long dcnt1=*((volatile long *)MCF_DTIM_DTCN1);
-	while((*((volatile long *)MCF_DTIM_DTCN1)-dcnt1)<usec);
-}
-
-long get_slice_timer(void)
-{
-	return(*(volatile long *)MCF_DTIM_DTCN1);
-}
-
-void start_timeout(void)
-{
-	time_out=get_slice_timer();
-}
-
-int end_timeout(long msec)
-{
-	msec*=1000;
-	return(((get_slice_timer()-time_out) < msec) ? 0 : 1);
-}
-
-void mdelay(long msec)
-{
-	long val;
-	msec*=1000;
-	val=get_slice_timer();
-	while((get_slice_timer()-val) < msec);
-}
-
-#else /* MCF548X */
-
-void udelay(long usec)
-{
-	long scnt1;
-	usec*=100;
-	scnt1=*((volatile long *)MCF_SLT_SCNT1);
-	while((scnt1 - *((volatile long *)MCF_SLT_SCNT1)) < usec);
-}
-
-long get_slice_timer(void)
-{
-	return(*(volatile long *)MCF_SLT_SCNT1);
-}
-
-void start_timeout(void)
-{
-	time_out=get_slice_timer();
-}
-
-int end_timeout(long msec)
-{
-	msec*=100000;
-	return(((time_out-get_slice_timer()) < msec) ? 0 : 1);
-}
-
-void mdelay(long msec)
-{
-	long val;
-	msec*=100000;
-	val=get_slice_timer();
-	while((val-get_slice_timer()) < msec);
-}
-
-#endif /* MCF5445X */
-
-#else /* ATARI */
-
 void udelay(long usec)
 {
 	unsigned char tcdr;
@@ -382,8 +307,6 @@ void mdelay(long msec)
 	val=get_timer_c();
 	while((get_timer_c()-val) < msec);
 }
-
-#endif /* COLDFIRE */
 
 void debug_print(const char *string)
 {
@@ -700,33 +623,12 @@ static int radeon_probe_pll_params(struct radeonfb_info *rinfo)
 	DPRINT("radeonfb: radeon_probe_pll_params\r\n");
 	/* Flush PCI buffers ? */
 	tmp = INREG16(DEVICE_ID);
-#ifdef COLDFIRE
-	asm("move.l D0,-(SP)");
-	asm("move.w SR,D0");
-	asm("move.w D0,save_d0");
-	asm("or.l #0x700,D0");   /* disable interrupts */
-	asm("move.w D0,SR");
-	asm("move.l (SP)+,D0");
-#else
 	asm("move.w SR,save_d0");
 	asm("or.w #0x700,SR");   /* disable interrupts */
-#endif
-#ifdef COLDFIRE
-	start_tv = get_slice_timer();
-#else
 	start_tv = get_timer_c();
-#endif
 	while(read_vline_crnt(rinfo) != 0)
 	{
-#ifdef COLDFIRE
-#ifdef MCF5445X
-		if((get_slice_timer()-start_tv) > 10000000UL)           /* 10 sec */
-#else /* MCF548X */
-		if((start_tv-get_slice_timer()) > 1000000000UL)         /* 10 sec */
-#endif
-#else
 		if((get_timer_c()-start_tv) > ((10000000UL*256)/5000))  /* 10 sec */
-#endif
 		{
 			timeout=1;
 			break;
@@ -734,22 +636,10 @@ static int radeon_probe_pll_params(struct radeonfb_info *rinfo)
 	}
 	if(!timeout)
 	{
-#ifdef COLDFIRE
-		start_tv = get_slice_timer();
-#else
 		start_tv = get_timer_c();
-#endif
 		while(read_vline_crnt(rinfo) == 0)
 		{
-#ifdef COLDFIRE
-#ifdef MCF5445X
-			if((get_slice_timer()-start_tv) > 1000000UL)          /* 1 sec */
-#else /* MCF548X */
-			if((start_tv-get_slice_timer()) > 100000000UL)        /* 1 sec */
-#endif
-#else
 			if((get_timer_c()-start_tv) > ((1000000UL*256)/5000)) /* 1 sec */
-#endif
 			{
 				timeout=1;
 				break;
@@ -759,15 +649,7 @@ static int radeon_probe_pll_params(struct radeonfb_info *rinfo)
 		{
 			while(read_vline_crnt(rinfo) != 0)
 			{
-#ifdef COLDFIRE
-#ifdef MCF5445X
-				if((get_slice_timer()-start_tv) > 10000000UL)           /* 10 sec */
-#else /* MCF548X */
-				if((start_tv-get_slice_timer()) > 1000000000UL)         /* 10 sec */
-#endif
-#else
 				if((get_timer_c()-start_tv) > ((10000000UL*256)/5000))  /* 10 sec */
-#endif
 				{
 					timeout=1;
 					break;
@@ -775,26 +657,11 @@ static int radeon_probe_pll_params(struct radeonfb_info *rinfo)
 			}
 		}
 	}
-#ifdef COLDFIRE
-	stop_tv = get_slice_timer();
-	asm("move.w D0,-(SP)");
-	asm("move.w save_d0,D0");
-	asm("move.w D0,SR");
-	asm("move.w (SP)+,D0");
-	if(timeout)  /* 10 sec */
-		return -1; /* error */
-#ifdef MCF5445X
-	hz = 1000000.0/(double)(stop_tv-start_tv);
-#else /* MCF548X */
-	hz = 100000000.0/(double)(start_tv-stop_tv);
-#endif
-#else
 	stop_tv = get_timer_c();
 	asm("move.w save_d0,SR");
 	if(timeout)  /* 10 sec */
 		return -1; /* error */
 	hz = 1000000.0/(((double)(start_tv-stop_tv)*5000.0)/256.0);
-#endif
   DPRINTVAL("radeonfb: radeon_probe_pll_params hz ", (long)hz);
 	hTotal = ((INREG(CRTC_H_TOTAL_DISP) & 0x1ff) + 1) * 8;
 	vTotal = ((INREG(CRTC_V_TOTAL_DISP) & 0x3ff) + 1);
@@ -1522,18 +1389,8 @@ static void radeon_timer_func(void)
 	if((info->var.xres_virtual != info->var.xres)
 	 || (info->var.yres_virtual != info->var.yres))
 	{
-#ifdef COLDFIRE
-		asm("clr.l -(SP)");		
-		asm("move.l D0,-(SP)");
-		asm("move.w SR,D0");
-		asm("move.l D0,4(SP)");
-		asm("or.l #0x700,D0");   /* disable interrupts */
-		asm("move.w D0,SR");
-		asm("move.l (SP)+,D0");
-#else
 		asm("move.w SR,-(SP)");
 		asm("or.w #0x700,SR");   /* disable interrupts */
-#endif
 		chg = 0;
 		x = info->var.xoffset;
 		y = info->var.yoffset;
@@ -1571,15 +1428,7 @@ static void radeon_timer_func(void)
 			if(disp)
 				RADEONShowCursor(rinfo);
 		}
-#ifdef COLDFIRE
-		asm("move.l D0,-(SP)");
-		asm("move.l 4(SP),D0");
-		asm("move.w D0,SR");
-		asm("move.l (SP)+,D0");
-		asm("addq.l #4,SP");		
-#else
 		asm("move.w (SP)+,SR");
-#endif
 	}
 }
 
@@ -2394,13 +2243,7 @@ int radeonfb_pci_register(long handle, const struct pci_device_id *ent)
 				xbra->ident = '_PCI';
 				xbra->jump[0] = 0x4EF9; /* JMP */
 				*(long *)&xbra->jump[1] = (long)radeon_timer_func;
-#ifdef COLDFIRE
-				asm("	.chip 68060");
-#endif
 				asm(" cpusha BC");
-#ifdef COLDFIRE
-				asm("	.chip 5200");
-#endif
 				*func_vbl = (void(*)())&xbra->jump[0];
 				xbra->old_address = 0;
 			}

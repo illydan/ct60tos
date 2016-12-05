@@ -17,24 +17,8 @@ Start:
 	jmp	_dbug                   // 40
 	jmp	_event_aes              // 46
 	jmp	_disassemble_pc         // 52
-#ifdef COLDFIRE
-#ifdef NETWORK
-#ifdef LWIP
-	jmp	_init_rtos              // 58
-#else
 	rts
 	nop
 	nop
-#endif
-#else
-	rts
-	nop
-	nop
-#endif
-#else
-	rts
-	nop
-	nop
-#endif
 	jmp	_set_video              // 64
 

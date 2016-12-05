@@ -135,8 +135,6 @@ begin13:
 	jmp	logo_atari
 end13:
 
-//#ifndef COLDFIRE	
-
 	.globl	det_vdi
 
 	.align	2
@@ -146,6 +144,3 @@ begin14:
 	.short	0x41F9
 	.long	det_vdi
 end14:
-
-//#endif
-

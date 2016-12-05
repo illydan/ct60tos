@@ -25,35 +25,10 @@
 #define	CT60_HW_H_
 
 #define RESERVE_MEM_FONTS  0x8000
-#ifndef COLDFIRE
 #define RESERVE_MEM       0x60000
-#endif
-
-#ifdef COLDFIRE
-
-#if defined(MCF5445X) /* M54455EVB */
-
-#define PARAM_SIZE  (128*1024)
-#define FLASH_SIZE  0x00120000
-
-#elif defined(MCF5474X) /* COLDARI */
-
-#define PARAM_SIZE  (64*1024)
-#define FLASH_SIZE  0x00100000
-
-#else /* MCF548X - M5484LITE */
-
-#define PARAM_SIZE  (64*1024)
-#define FLASH_SIZE  0x00100000
-
-#endif /* M5445X */
-
-#else /* ATARI - CT60 */
 
 #define PARAM_SIZE	(64*1024)	/* 64 KB */
 #define FLASH_SIZE  (1024*1024)	/* 1MB */
-
-#endif /* COLDFIRE */
 
 #define TOS4_SIZE	(512*1024)	/* 512 KB */
 

@@ -4,35 +4,10 @@
 #define LITTLE_ENDIAN_LANE_SWAPPED
 #define CHECK_PARITY
 
-#ifdef COLDFIRE
-#include "fire.h"
-// host bridge configuration
-#define PCI_RETRIES 0 // infinite (bug before date code XXX0445)
-#define PCI_CACHE_LINE 8
-#define PCI_MINGNT 1
-#define PCI_MAXLAT 42
-#else
 #define PCI_MAXLAT 32
-#endif
 
 #define PCI_BIOS_REV         0x10000
 
-#ifdef COLDFIRE
-#define PCI_LOCAL_CONFIG  MCF_PCI_PCIIDR
-#ifdef MCF5445X
-#define PCI_IRQ_BASE_VECTOR    (64+INT1_HI_PCI_SCR+64+OFFSET_INT_CF68KLIB)
-#define PCI_MEMORY_OFFSET  0xA0000000
-#define PCI_MEMORY_SIZE    0x10000000   /* 256 MB */ 
-#define PCI_IO_OFFSET      0xB0000000
-#define PCI_IO_SIZE        0x10000000   /* 256 MB */
-#else /* MCF548X */
-#define PCI_IRQ_BASE_VECTOR    (64+41+OFFSET_INT_CF68KLIB)
-#define PCI_MEMORY_OFFSET  0x80000000
-#define PCI_MEMORY_SIZE    0x40000000   /* 1024 MB */ 
-#define PCI_IO_OFFSET      0xD0000000
-#define PCI_IO_SIZE        0x10000000   /* 256 MB */
-#endif /* MCF5445X */ 
-#else /* ATARI - CTPCI */
 /* note: Ethernat use 0x80000000-0x8000003F space and interrupts vectors 0xC4-0xC5 */
 #define PCI_IRQ_BASE_VECTOR      0xC9   /* offset 0x9:LINT - 0xA:INT#A - 0xB:INT#B - 0xC:INT#C - 0xD:INT#D */
 #define PCI_CTPCI_CONFIG   0xE0000000   /* CTPCI PLX registers */
@@ -53,21 +28,12 @@
 #if PCI_MEMORY_SIZE != PCI_IO_SIZE
 #error PLX need MEM and I/O with the same size
 #endif
-#endif /* COLDFIRE */
 #define GRAPHIC_CARD_SIZE  0x10000000
 
 #define PCI_MAX_HANDLE              5  /* 4 slots on the CTPCI + host bridge PLX9054 */
 #define PCI_MAX_FUNCTION            4	 /* 4 functions per PCI slot */
 
 #define PCI_NOBODYHOME         0xFFFF
-
-#ifdef COLDFIRE
-
-#define LAST_LOCAL_REGISTER  0x40
-
-#define LOCAL_REGISTERS_BIG // local registers are in Big Endian on the Coldfire
-
-#else /* PLX9054 */
 
 /* PLX9054 ID */
 #define PLX9054            0x905410B5
@@ -155,8 +121,6 @@
 #define DMDAC                0x17C   /* PCI Initiator PCI Dual Address Cycle*/
 
 #define LAST_LOCAL_REGISTER  0x200
-
-#endif /* COLDFIRE */
 
 /* PCI configuration registers */
 #define PCIIDR                0x00   /* PCI Configuration ID Register       */

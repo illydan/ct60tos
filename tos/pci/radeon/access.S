@@ -49,18 +49,13 @@
 #define func_event 100
 
 	.global _access,save_d0,__bzero,_bzero,_memset,_memmove,_memcpy
-#ifndef COLDFIRE
 	.global _cpush_dc
-#endif
 	.global _Funcs_copymem,_Funcs_next_line,_Funcs_skip_space,_Funcs_get_token
 	.global _Funcs_equal,_Funcs_length,_Funcs_copy,_Funcs_cat,_Funcs_numeric
 	.global _Funcs_atol,_Funcs_error,_Funcs_malloc,_Funcs_free,_Funcs_puts
 	.global _Funcs_ltoa,_Funcs_get_cookie,_Funcs_set_cookie,_Funcs_fixup_font
 	.global _Funcs_unpack_font,_Funcs_insert_font,_Funcs_get_size,_Funcs_allocate_block
 	.global _Funcs_free_block,_Funcs_cache_flush,_Funcs_misc,_Funcs_event
-#ifdef COLDFIRE
-	.global _SMUL_DIV
-#endif
 	.global _Isin,_Icos,_isqrt,_swap_long
 	.global _tab_funcs_pci,_Find_pci_device,_Find_pci_classcode,_Read_config_byte,_Read_config_word,_Read_config_longword
 	.global _Fast_read_config_byte,_Fast_read_config_word,_Fast_read_config_longword,_Write_config_byte,_Write_config_word,_Write_config_longword
@@ -219,7 +214,6 @@ _memcpy:
 .cp0:
 	move.l D5,D6
 	move.l #256,D4
-#ifndef COLDFIRE
 	move.l A5,D0             // d
 	move.l A4,D1             // s
 	or.l D1,D0
@@ -248,9 +242,6 @@ _memcpy:
 	sub.l D4,D5
 	bpl.s .cp10
 	bra.s .cp9
-#else /* COLDFIRE */
-	bra.s .cp7
-#endif /* COLDFIRE */
 .cp8:
 		movem.l (A4),D0-D3/A0-A3
 		movem.l D0-D3/A0-A3,(A5)
@@ -327,7 +318,6 @@ _memcpy:
 	lea 36(SP),SP
 	rts
 
-#ifndef COLDFIRE	
 _cpush_dc:
 	move.l 8(SP),D0          // size
 	beq.s .csh1
@@ -351,7 +341,6 @@ _cpush_dc:
 	cpusha dc                // flush all
 .csh1:
 	rts
-#endif
 
 _Funcs_copymem:
 	move.l D2,-(SP)
@@ -708,16 +697,6 @@ _Funcs_event:
 	move.l (SP)+,D2
 	rts
 
-#ifdef COLDFIRE
-_SMUL_DIV:
-	move.l 4(SP),D0 // x
-	muls 10(SP),D0  // y
-	.chip 68060
-	divs 14(SP),D0  // z
-	.chip 5200
-	rts
-#endif
-
 #define HALFPI 900 
 #define PI    1800
 #define TWOPI 3600
@@ -762,13 +741,7 @@ _Isin:
 	neg.l D0                 // angle
 	add.l #PI,D0
 .ls3:
-#ifdef COLDFIRE
-	.chip 68060
 	divu #10,D0
-	.chip 5200
-#else
-	divu #10,D0
-#endif
 	move.l D0,D1             // index
 	swap D1                  // remainder
 	move.w D0,A0
@@ -783,12 +756,7 @@ _Isin:
 	move.w (A0),D2
 	sub.l D0,D2              // [table] - tmpsin
 	mulu D1,D2               // * remainder
-#ifdef COLDFIRE
-	mulu #6554,D2
-	swap D2                  // / 10
-#else
 	divu #10,D2
-#endif
 	ext.l D2
 	add.l D2,D0              // + tmpsin
 	move.l (SP)+,D2
@@ -838,13 +806,7 @@ _isqrt:
 .is3:
 		move.l D2,D1
 		move.l D0,D2
-#ifdef COLDFIRE
-		.chip 68060
 		divu.l D1,D2
-		.chip 5200
-#else
-		divu.l D1,D2
-#endif
 		add.l D1,D2
 		lsr.l #1,D2
 	cmp.l D2,D1
@@ -857,19 +819,9 @@ _isqrt:
 _swap_long:
 
 	move.l 4(SP),D0
-#ifdef COLDFIRE
-	move.l D0,D1
-	asl.l #8,D0
-	lsr.l #8,D1
-	and.l #0xff00ff00,D0
-	and.l #0x00ff00ff,D1
-	or.l D1,D0
-	swap D0
-#else
 	ror.w #8,D0
 	swap D0
 	ror.w #8,D0
-#endif
 	rts
 
 _Find_pci_device:

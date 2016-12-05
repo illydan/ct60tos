@@ -23,34 +23,16 @@
  */
  
 #include "ct60_hw.h"
-#ifdef COLDFIRE
-#include "fire.h"
-#endif
 
 	.text            
 
-#ifdef COLDFIRE
-	.globl	init_cf
-#else	
 	.globl	init_060
-#endif
 	
 	.align	2
 	.long	0x30
 	.long	end1-begin1
 begin1:
-#ifdef COLDFIRE
-	move.l	#init_cf-FLASH_ADR+FLASH_TOS_FIRE_ENGINE,D1
-	and.l 	#0xFFFFFF,D1
-	lea	end1(PC),A0
-	move.l	A0,D0
-	and.l	#0xFF000000,D0
-	or.l	D1,D0
-	move.l	D0,A0
-	jmp	(A0)
-#else
 	jmp	init_060
-#endif
 end1:
 
 	.globl	init_sdram
@@ -61,18 +43,6 @@ end1:
 begin2:
 	jsr	init_sdram
 end2:
-
-#ifdef COLDFIRE
-
-	.align	2
-	.long	0x2BC
-	.long	end3-begin3
-begin3:
-	nop
-	nop
-end3:
-
-#else
 
 	.align	2
 	.long	0x14E6
@@ -97,8 +67,6 @@ begin3:
 	nop
 	nop	
 end3:
-
-#endif
 
 	.align	2
 	.long	0x39A0

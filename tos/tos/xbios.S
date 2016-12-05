@@ -20,10 +20,6 @@
 
 	.text
 	
-#ifdef COLDFIRE
-	.chip	68060
-#endif
-
 	.globl	det_xbios
 
 	.align	2
@@ -67,11 +63,7 @@ end4:
 	.globl	test_rtc
 	
 	.align	2
-#ifdef COLDFIRE
-	.long	0x2112
-#else	
 	.long	0x212E
-#endif
 	.long	end5-begin5
 begin5:
 	jmp	test_rtc
@@ -94,8 +86,6 @@ begin7:
 	nop
 end7:	
 
-#ifndef COLDFIRE
-	
 	.globl	fix_gettime
 	
 	.align	2
@@ -105,97 +95,3 @@ begin8:
 	jsr	fix_gettime
 end8:
 
-#else /* COLDFIRE */
-
-	.globl	gettime
-
-	.align	2
-	.long	0x22A0
-	.long	end9-begin9
-begin9:
-	jmp	gettime
-end9:
-
-	.globl	end_settime
-
-	.align	2
-	.long	0x231A
-	.long	end10-begin10
-begin10:
-	jmp	end_settime
-end10:
-
-	.globl	error_ok
-
-	.align	2
-	.long	0x332
-	.long	end11-begin11
-begin11:
-	move.l	#error_ok,dump_vec
-end11:
-
-	.align	2
-	.long	0x33A
-	.long	end12-begin12
-begin12:
-	move.l	#error_ok,ptr_stat
-end12:
-
-	.align	2
-	.long	0x342
-	.long	end13-begin13
-begin13:
-	move.l	#error_ok,ptr_vec
-end13:
-	
-	.globl	auxostat
-
-	.align	2
-	.long	0x34A
-	.long	end14-begin14
-begin14:
-	move.l	#auxostat,aux_sta
-end14:
-	
-	.globl	auxout
-	
-	.align	2
-	.long	0x352
-	.long	end15-begin15
-begin15:
-	move.l	#auxout,aux_vec
-end15:
-
-	.align	2
-	.long	0x532
-	.long	end16-begin16
-begin16:	// reset IKBD
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-end16:
-
-	.align	2
-	.long	0x429A
-	.long	end17-begin17
-begin17:	// flopvbl
-	rts
-end17:
-
-	.globl _Setscreen
-
-	.align	2
-	.long	0x5A8
-	.long	end18-begin18
-begin18:
-	jsr	_Setscreen
-end18:
-
-#endif
-	

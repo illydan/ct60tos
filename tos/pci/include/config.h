@@ -11,31 +11,9 @@
 #undef PCI_XBIOS              /* faster by cookie */
 
 /* NETWORK */
-#ifdef COLDFIRE
-#define NETWORK
-#define ETHERNET_PORT 0       /* FEC channel */
-#undef TEST_NETWORK
-#undef DEBUG_PRINT
-#define LWIP
-#define WEB_LIGHT
-#define ERRNO
-#define MCD_PROGQUERY
-#undef MCD_DEBUG
-
-#ifdef MCF5445X               /* target untested */
-#ifndef LWIP
-#undef NETWORK                /* to do */
-#endif
-#endif
-
-/* BDOS */
-#define NEWCODE
-#endif /* COLDFIRE */
 
 /* fVDI */
-#ifndef COLDFIRE
 #undef TEST_NOPCI
-#endif
 
 /* X86 emulator */
 #undef DEBUG_X86EMU

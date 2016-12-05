@@ -33,12 +33,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifdef COLDFIRE 
-	.globl init_cf
-	.globl before_init_cookies
-#else
 	.globl init_060
-#endif
 	.globl init_sdram
 	.globl add_sdram
 	.globl boot_drive
@@ -46,13 +41,8 @@
 	.globl fix_bug_nvdi
 	.globl display_ram_test
 	.globl init_flash_parameters
-#ifdef COLDFIRE
-	.globl error_unknow_device
-	.globl error_ok
-#else
 	.globl ct60_read_info_sdram
 	.globl ct60_configure_sdram
-#endif
 
 #include "ct60_hw.h"
 #include "ct60.h"
@@ -134,17 +124,6 @@
 #define pinfo_flags  222  // 16 x 2 bytes, internal use: B15:swap, B7:change, B0:bootable
 #define pinfo_bpb    256  // 16 x 32 bytes
 #define pinfo_size   768
-
-#ifdef COLDFIRE
-#define AUTO_SUBROUTINE // for BDOS else crash
-
-#define PCI_DRIVERS_SIZE  0x40000
-
-#include "fire.h"
-
-#define RESET // for IDE
-
-#else /* 68060 */
 
 #define USE_ATARI_IO       // IDE, SCSI
 
@@ -262,8 +241,6 @@
 
 #define  WAIT_US bsr wait_26us  
 
-#endif /* COLDFIRE */
-
 #ifdef USE_ATARI_IO
 
 #define ATA_DATA           0xFFF00000
@@ -282,1413 +259,6 @@
 #define _v_cel_ht LINEA_VAR-46  // cell height (width is 8)
 
 	.text
-
-#ifdef COLDFIRE
-
-init_cf:
-
-	move.w #0x2700,SR
-	.chip 5200
-#ifdef MCF5445X
-	/* Initialize RAMBAR - locate it on the data bus */
-	move.l #SRAM_BASE+0x35,D0
-	movec.l D0,RAMBAR1
-	move.l #8191,D0 // 32KB
-.init_sram:                           // clear SRAM
-		clr.l (A0)+
-	subq.l #1,D0
-	bpl.s .init_sram
-	/* Point Stack Pointer into Core SRAM temporarily */
-	lea SRAM_BASE+0x8000,A0
-#else /* MCF547X - MCF548X */
-	/* Initialize MBAR */
-	move.l #__MBAR,D0
-	movec.l D0,MBAR
-	/* Initialize RAMBAR0 - locate it on the data bus */
-	move.l #0x20000035,D0
-	movec.l D0,RAMBAR0
-	/* Initialize RAMBAR1 - locate it on the data bus */
-	move.l #0x20001035,D0
-	movec.l D0,RAMBAR1
-	lea 0x20000000,A0
-	move.l #2047,D0 // 2 x 4KB
-.init_sram:                           // clear 2 x SRAM
-		clr.l (A0)+
-	subq.l #1,D0
-	bpl.s .init_sram
-	/* Point Stack Pointer into Core SRAM temporarily */
-	lea 0x20002000,A0
-#endif /* MCF5445X */
-	move.l A0,SP
-	/* Invalidate the data, instruction, and branch caches */
-	move.l #CACHE_DISABLE_MODE,D0 
-	movec.l D0,CACR
-	nop                      // default copyback set later with CACR at X2XXXXXX
-	move.l #0x0000E000,D0    // zone at $00000000 to $00FFFFFF in writethrough
-	movec.l D0,ACR0
-	movec.l D0,ACR2
-	move.l #0x807FE040,D0    // and the zone $80000000-$FFFFFFFF in cache inhibit precise
-	movec.l D0,ACR1
-	movec.l D0,ACR3
-	/* Disable all interrupts */
-	bsr disable_interrupts
-#ifdef MCF5445X /* M54455EVB */
-	/* Falling edge on IRQ1-7 EPORT */
-	move.w EPORT_EPPAR_EPPA7(EPORT_EPPAR_FALLING) \
-	 + EPORT_EPPAR_EPPA6(EPORT_EPPAR_FALLING) \
-	 + EPORT_EPPAR_EPPA5(EPORT_EPPAR_FALLING) \
-	 + EPORT_EPPAR_EPPA4(EPORT_EPPAR_FALLING) \
-	 + EPORT_EPPAR_EPPA3(EPORT_EPPAR_FALLING) \
-	 + EPORT_EPPAR_EPPA2(EPORT_EPPAR_FALLING) \
-	 + EPORT_EPPAR_EPPA1(EPORT_EPPAR_FALLING),D0
-	move.w D0,MCF_EPORT_EPPAR
-	clr.b MCF_EPORT_EPDDR
-	clr.b MCF_EPORT_EPIER
-	/* Disable watchdog timer */
-	clr.w MCF_SCM_CWCR
-	/* System Control */
-	move.l #0x77777777,D0
-	move.L D0,MCF_SCM_MPR
-	moveq #0,D0
-	move.l D0,MCF_SCM_PACRA
-	move.l D0,MCF_SCM_PACRB
-	move.l D0,MCF_SCM_PACRC
-	move.l D0,MCF_SCM_PACRD
-	move.l D0,MCF_SCM_PACRE
-	move.l D0,MCF_SCM_PACRF
-	move.l D0,MCF_SCM_PACRG
-	/* Setup RTC Clock */
-	move.l #(CFG_RTC_OSCILLATOR/65536),D0
-	move.l D0,MCF_RTC_GOCU
-	move.l #(CFG_RTC_OSCILLATOR%65536),D0
-	move.l D0,MCF_RTC_GOCL    
-	/* Setup FEC Pins */
-	move.b #GPIO_PAR_FEC_FEC1_RMII_ATA + GPIO_PAR_FEC_FEC0_RMII_ULPI,D0
-	move.b D0,MCF_GPIO_PAR_FEC
-	/* Setup FlexBus Pins */
-	move.b #GPIO_PAR_BE_BE3_BE3 + GPIO_PAR_BE_BE2_BE2 \
-	 + GPIO_PAR_BE_BE1_BE1 + GPIO_PAR_BE_BE0_BE0,D0
-	MOVE.B D0,MCF_GPIO_PAR_BE
-	MOVE.B #GPIO_PAR_CS_CS1_CS1 + GPIO_PAR_CS_CS2_CS2 + GPIO_PAR_CS_CS3_CS3,D0
-	MOVE.B D0,MCF_GPIO_PAR_CS
-	move.b #GPIO_PAR_FBCTL_OE + GPIO_PAR_FBCTL_TA_TA \
-	 + GPIO_PAR_FBCTL_RW_RW + GPIO_PAR_FBCTL_TS_TS,D0
-	move.b D0,MCF_GPIO_PAR_FBCTL
-	/* Setup DSPI Serial Flash / Audio Pins */
-	move.b #GPIO_PAR_DSPI_PCS5_PCS5 + GPIO_PAR_DSPI_PCS2_PCS2 \
-	 + GPIO_PAR_DSPI_PCS1_PCS1 + GPIO_PAR_DSPI_PCS0_PCS0 \
-	 + GPIO_PAR_DSPI_SIN_SIN + GPIO_PAR_DSPI_SOUT_SOUT + GPIO_PAR_DSPI_SCK_SCK,D0
-	move.b D0,MCF_GPIO_PAR_DSPI
-	/* Setup SSI Audio Pins */
-	move.w #GPIO_PAR_SSI_BCLK_BCLK + GPIO_PAR_SSI_FS_FS \
-	 + GPIO_PAR_SSI_SRXD_SRXD + GPIO_PAR_SSI_STXD_STXD + GPIO_PAR_SSI_MCLK_MCLK,D0
-	move.w D0,MCF_GPIO_PAR_SSI
-	/* Setup USB Pins */
-	move.b #GPIO_PAR_USB_VBUSEN_VBUSEN + GPIO_PAR_USB_VBUSOC_VBUSOC,D0
-	move.b D0,MCF_GPIO_PAR_USB
-	move.b #GPIO_PAR_DMA_DACK1_ULPI_DIR + GPIO_PAR_DMA_DREQ1_USB_CLKIN \
-	+ GPIO_PAR_DMA_DACK0_DACK0 + GPIO_PAR_DMA_DREQ0_DREQ0,D0
-	move.b D0,MCF_GPIO_PAR_DMA
-	/* Setup I2C/FEC/ATA Pins */
-	move.w #GPIO_PAR_FECI2C_MDC1_ATA_DIOR + GPIO_PAR_FECI2C_MDIO1_ATA_DIOW \
-	 + GPIO_PAR_FECI2C_MDC0_MDC0 + GPIO_PAR_FECI2C_MDIO0_MDIO0 \
-	 + GPIO_PAR_FECI2C_SCL_SCL + GPIO_PAR_FECI2C_SDA_SDA,D0
-	move.w D0,MCF_GPIO_PAR_FECI2C	
-	/* ATA */
-	move.w #GPIO_PAR_ATA_BUFEN_BUFEN + GPIO_PAR_ATA_CS1_CS1 + GPIO_PAR_ATA_CS0_CS0 \
-	 + GPIO_PAR_ATA_DA2_DA2 + GPIO_PAR_ATA_DA1_DA1 + GPIO_PAR_ATA_DA0_DA0 \
-	 + GPIO_PAR_ATA_RESET_RESET + GPIO_PAR_ATA_DMARQ_DMARQ + GPIO_PAR_ATA_IORDY_IORDY,D0
-	move.w D0,MCF_GPIO_PAR_ATA
-	/* Setup Pins Serial Ports */
-	move.b #GPIO_PAR_UART_U1CTS_U1CTS + GPIO_PAR_UART_U1RTS_U1RTS \
-	 + GPIO_PAR_UART_U1RXD_U1RXD + GPIO_PAR_UART_U1TXD_U1TXD \
-	 + GPIO_PAR_UART_U0CTS_U0CTS + GPIO_PAR_UART_U0RTS_U0RTS \
-	 + GPIO_PAR_UART_U0RXD_U0RXD + GPIO_PAR_UART_U0TXD_U0TXD,D0
-	move.b D0,MCF_GPIO_PAR_UART
-	move.b #GPIO_PAR_TIMER_T3IN_U2RXD + GPIO_PAR_TIMER_T2IN_U2TXD,D0
-	move.b D0,MCF_GPIO_PAR_TIMER
-	/* Set PCIGNT1, PCIREQ1, PCIREQ0/PCIGNTIN, PCIGNT0/PCIREQOUT, PCIREQ2, PCIGNT2 */
-	move.w #GPIO_PAR_PCI_GNT3_ATA_DMACK + GPIO_PAR_PCI_GNT2 \
-	 + GPIO_PAR_PCI_GNT1 + GPIO_PAR_PCI_GNT0 \
-	 + GPIO_PAR_PCI_REQ3_ATA_INTRQ + GPIO_PAR_PCI_REQ2 \
-	 + GPIO_PAR_PCI_REQ1 + GPIO_PAR_PCI_REQ0,D0
-	move.w D0,MCF_GPIO_PAR_PCI
-	/* Reset UART Transmitter */
-	move.b #MCF_UART_UCR_RESET_TX,D0
-    	move.b D0,MCF_UART_UCR0
-	/* Reset UART Receiver */
-	move.b #MCF_UART_UCR_RESET_RX,D0
-	move.b D0,MCF_UART_UCR0
-	/* Reset UART Mode Register */
-	move.b #MCF_UART_UCR_RESET_MR,D0
-	move.b D0,MCF_UART_UCR0
-	/* No parity, 8-bits per character */
-	move.b #MCF_UART_UMR_PM_NONE+MCF_UART_UMR_BC_8,D0
-	move.b D0,MCF_UART_UMR0
-	/* No echo or loopback, 1 stop bit */
-	move.b #MCF_UART_UMR_CM_NORMAL+MCF_UART_UMR_SB_STOP_BITS_1,D0
-	move.b D0,MCF_UART_UMR0
-	/* Set Rx and Tx baud by timer */
-	move.b #MCF_UART_UCSR_RCS_SYS_CLK+MCF_UART_UCSR_TCS_SYS_CLK,D0
-	move.b D0,MCF_UART_UCSR0
-	/* Mask all UART interrupts */
-	clr.b MCF_UART_UIMR0  
-	/* Calculate baud settings */
-	move.l #(SYSTEM_CLOCK*1000000)/(19200 * 32),D0 // ubgs
-	move.b D0,D1
-	lsr.l #8,D0
-	move.b D0,MCF_UART_UBG10
-	move.b D1,MCF_UART_UBG20
-	/* Enable receiver and transmitter */
-	move.b #MCF_UART_UCR_TX_ENABLED+MCF_UART_UCR_RX_ENABLED,D0
-	move.b D0,MCF_UART_UCR0
-#ifdef DEBUG
-	clr.b serial_mouse
-	lea debug101(PC),A0
-	bsr debug_display_string	
-#endif
-	/* Intel Flash */
-	move.l #FBCS_CSAR_BA(BOOT_FLASH_BASE),D0
-	move.l D0,MCF_FBCS0_CSAR
-	move.l #CFG_CS0_MASK,D0
-	move.l D0,MCF_FBCS0_CSMR
-	move.l #CFG_CS0_CTRL,D0
-	move.l D0,MCF_FBCS0_CSCR
-#if 0
-	/* Atmel Flash */
-	move.l #CFG_CS1_BASE,D0
-	move.l D0,MCF_FBCS1_CSAR
-	move.l #CFG_CS1_MASK,D0
-	move.l D0,MCF_FBCS1_CSMR
-	move.l #CFG_CS1_CTRL,D0
-	move.l D0,MCF_FBCS1_CSCR
-#endif
-#ifdef DEBUG
-	lea debug108(PC),A0
-	bsr debug_display_string
-#endif
-	/* FPGA */
-	move.l #FBCS_CSAR_BA(CPLD_BASE),D0
-	move.l D0,MCF_FBCS2_CSAR
-	move.l #CFG_CS2_MASK,D0
-	move.l D0,MCF_FBCS2_CSMR
-	move.l #CFG_CS2_CTRL,D0
-	move.l D0,MCF_FBCS2_CSCR	
-	/* FPGA */
-	move.l #FBCS_CSAR_BA(FPGA_BASE),D0
-	move.l D0,MCF_FBCS3_CSAR
-	move.l #CFG_CS3_MASK,D0
-	move.l D0,MCF_FBCS3_CSMR
-	move.l #CFG_CS3_CTRL,D0
-	move.l D0,MCF_FBCS3_CSCR
-#ifdef DEBUG
-	lea debug109(PC),A0
-	bsr debug_display_string
-	move.l FPGA_VERSION,D0
-	lsr.l #8,D0
-	bsr debug_hex_byte
-	moveq #0x2E,D0
-	bsr debug_display_char
-	move.l FPGA_VERSION,D0
-	bsr debug_hex_byte
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug103(PC),A0
-	bsr debug_display_string	
-#endif	
-	/*
-	 * Check to see if the SDRAM has already been initialized
-	 * by a run control tool
-	 */
-	lea .copy_tos(PC),A0
-	move.l A0,D0
-	moveq #24,D1
-	lsr.l D1,D0
-	beq .sdram_controller_ok // started from RAM
-//	move.l MCF_SDRAMC_SDCR,D0
-//	and.l #SDRAMC_SDCR_REF,D0
-//	bne .sdram_controller_ok
-	move.b #GPIO_MSCR_SDRAM_SDDATA_DDR2 + GPIO_MSCR_SDRAM_SDDQS_DDR2 \
-	 + GPIO_MSCR_SDRAM_SDCLK_DDR2 + GPIO_MSCR_SDRAM_SDCTL_DDR2, D0
-	move.b D0,MCF_GPIO_MSCR_SDRAM
-	move.l #SDRAMC_SDCS_BA(SDRAM_BASE) \
-	+ SDRAMC_SDCS_CSSZ(SDRAMC_SDCS_CSSZ_64MBYTE),D0
-	move.l D0,MCF_SDRAMC_SDCS0
-	move.l #SDRAMC_SDCS_BA(SDRAM_BASE+(SDRAM_SIZE/2)) \
-	+ SDRAMC_SDCS_CSSZ(SDRAMC_SDCS_CSSZ_64MBYTE),D0
-	move.l D0,MCF_SDRAMC_SDCS1
-	move.l #CFG_SDRAM_CFG1,D0
-	move.l D0,MCF_SDRAMC_SDCFG1
-	move.l #CFG_SDRAM_CFG2,D0
-	move.l D0,MCF_SDRAMC_SDCFG2
-	/* Issue PALL */
-	move.l #CFG_SDRAM_CTRL + SDRAMC_SDCR_IPALL,D0
-	move.l D0,MCF_SDRAMC_SDCR
-	/* Issue LEMR */
-	move.l #CFG_SDRAM_EMOD + 0x408,D0
-	move.l D0,MCF_SDRAMC_SDMR
-	move.l #CFG_SDRAM_MODE + 0x300,D0
-	move.l D0,MCF_SDRAMC_SDMR
-	/* Issue PALL */
-	move.l #CFG_SDRAM_CTRL + SDRAMC_SDCR_IPALL,D0
-	move.l D0,MCF_SDRAMC_SDCR
-	/* Perform two refresh cycles */
-	move.l #CFG_SDRAM_CTRL + SDRAMC_SDCR_IREF,D0
-	move.l D0,MCF_SDRAMC_SDCR
-	move.l #CFG_SDRAM_CTRL + SDRAMC_SDCR_IREF,D0
-	move.l D0,MCF_SDRAMC_SDCR
-	move.l #CFG_SDRAM_MODE + SDRAMC_SDMR_DDR2_AD(0x200),D0
-	move.l D0,MCF_SDRAMC_SDMR
-	move.l #~SDRAMC_SDCR_MODE_EN,D0
-	and.l D0,MCF_SDRAMC_SDCR
-	move.l #SDRAMC_SDCR_REF_EN+SDRAMC_SDCR_DQS_OE(0x3),D0
-	or.l D0,MCF_SDRAMC_SDCR
-.sdram_controller_ok:
-#else /* MCF547X-MCF548X */
-	/* Falling edge on IRQ1-7 EPORT */
-	move.w MCF_EPORT_EPPAR_EPPA7(MCF_EPORT_EPPAR_EPPAx_FALLING) \
-	 + MCF_EPORT_EPPAR_EPPA6(MCF_EPORT_EPPAR_EPPAx_FALLING) \
-	 + MCF_EPORT_EPPAR_EPPA5(MCF_EPORT_EPPAR_EPPAx_FALLING) \
-	 + MCF_EPORT_EPPAR_EPPA4(MCF_EPORT_EPPAR_EPPAx_FALLING) \
-	 + MCF_EPORT_EPPAR_EPPA3(MCF_EPORT_EPPAR_EPPAx_FALLING) \
-	 + MCF_EPORT_EPPAR_EPPA2(MCF_EPORT_EPPAR_EPPAx_FALLING) \
-	 + MCF_EPORT_EPPAR_EPPA1(MCF_EPORT_EPPAR_EPPAx_FALLING),D0
-	move.w D0,MCF_EPORT_EPPAR
-	clr.b MCF_EPORT_EPDDR
-	clr.b MCF_EPORT_EPIER
-	/* Disable watchdog timer */
-	clr.l MCF_GPT_GMS0
-	/* Setup XL Bus Arbiter */
-	move.l #MCF_XARB_CFG_BA + MCF_XARB_CFG_DT + MCF_XARB_CFG_AT,D0
-	move.l D0,MCF_XARB_CFG
-	move.l #0x1FFFFF,D0
-	move.l D0,MCF_XARB_ADRTO
-	move.l D0,MCF_XARB_DATTO
-	move.l #0xFFFFFF,D0
-	move.l D0,MCF_XARB_BUSTO     // better timeouts
-	/* Reset PCI devices */
-	move.l #MCF_PCI_PCIGSCR_PR,D0
-	or.l D0,MCF_PCI_PCIGSCR
-#if 1
-	/* Setup the PCI arbiter */
-	move.l #MCF_PCIARB_PACR_INTMPRI \
-	 + MCF_PCIARB_PACR_EXTMPRI(0x1F) \
-	 + MCF_PCIARB_PACR_INTMINTEN \
-	 + MCF_PCIARB_PACR_EXTMINTEN(0x1F),D0
-	move.l D0,MCF_PCIARB_PACR
-	/* GNT and REQ */
-	move.w #0x3FF,D0
-	move.w D0,MCF_GPIO_PAR_PCIBG
-	move.w D0,MCF_GPIO_PAR_PCIBR
-	/* Master Enable / Memory Space / MWI */
-	move.l #MCF_PCI_PCISCR_M + MCF_PCI_PCISCR_B + MCF_PCI_PCISCR_MW,D0
-	move.l D0,MCF_PCI_PCISCR     // PCI Command Register
-	/* Setup burst parameters */
-	move.l #MCF_PCI_PCICR1_CACHELINESIZE(PCI_CACHE_LINE) + MCF_PCI_PCICR1_LATTIMER(32),D0
-	move.l D0,MCF_PCI_PCICR1
-	move.l #MCF_PCI_PCICR2_MINGNT(PCI_MINGNT) + MCF_PCI_PCICR2_MAXLAT(PCI_MAXLAT),D0
-	move.l D0,MCF_PCI_PCICR2
-	/* Turn on error signaling */
-	move.l #MCF_PCI_PCIICR_TAE + MCF_PCI_PCIICR_IAE /* + MCF_PCI_PCIICR_REE*/ + PCI_RETRIES,D0
-	move.l D0,MCF_PCI_PCIICR
-	move.l #MCF_PCI_PCIGSCR_SEE,D0
-	or.l D0,MCF_PCI_PCIGSCR
-	/* Configure Initiator Windows */
-	move.l #PCI_MEMORY_OFFSET + ((PCI_MEMORY_SIZE - 1) >> 8),D0
-	clr.w D0
-	move.l D0,MCF_PCI_PCIIW0BTAR // Initiator Window 0 Base / Translation Address Register
-	move.l #PCI_IO_OFFSET + ((PCI_IO_SIZE - 1) >> 8),D0
-	clr.w D0
-	move.l D0,MCF_PCI_PCIIW1BTAR // Initiator Window 1 Base / Translation Address Register
-	clr.l MCF_PCI_PCIIW2BTAR     // not used
-	move.l #MCF_PCI_PCIIWCR_WINCTRL0_MEMRDLINE + MCF_PCI_PCIIWCR_WINCTRL1_IO,D0
-	move.l D0,MCF_PCI_PCIIWCR	   // Initiator Window Configuration Register
-#if 0 // one target zone 	
-	clr.l MCF_PCI_PCIBAR0 
-	clr.l MCF_PCI_PCITBATR0      // Target Base Address Translation Register 0
-//	move.l #PCI_MEMORY_SIZE,D0   // STRAM/SDRAM mapped on PCI after the zones for devices
-	move.l #0x40000000,D0
-	move.l D0,MCF_PCI_PCIBAR1    // 1 GB window ! 
-	move.l #MCF_PCI_PCITBATR1_EN,D0 
-	move.l D0,MCF_PCI_PCITBATR1  // Target Base Address Translation Register 1
-#else // two target zones
-	move.l #SDRAM_SIZE,D2        // SDRAM top
-//	move.l #PCI_MEMORY_SIZE,D0   // SDRAM mapped on PCI after the zones for devices
-//	add.l 0x01000000,D0
-	move.l #0x80000000,D0
-	move.l D0,MCF_PCI_PCIBAR0 
-	move.l #0x01000000 + MCF_PCI_PCITBATR0_EN,D2
-.no_sdram:
-	move.l D2,MCF_PCI_PCITBATR0  // Target Base Address Translation Register 0
-//	move.l #PCI_MEMORY_SIZE,D0   // STRAM mapped on PCI after the zones for devices
-	move.l #0x40000000,D0
-	move.l D0,MCF_PCI_PCIBAR1    // 1 GB window ! 
-	move.l #MCF_PCI_PCITBATR1_EN,D0 
-	move.l D0,MCF_PCI_PCITBATR1  // Target Base Address Translation Register 1
-#endif
-	/* Clear PCI Reset and wait for devices to reset */
-	move.l #~MCF_PCI_PCIGSCR_PR,D0
-	and.l D0,MCF_PCI_PCIGSCR
-#endif
-	/* PSC init for debug */
-	move.b #MCF_GPIO_PAR_PSC0_PAR_TXD0 \
-	 + MCF_GPIO_PAR_PSC0_PAR_RXD0 \
-	 + MCF_GPIO_PAR_PSC0_PAR_CTS0_CTS \
-	 + MCF_GPIO_PAR_PSC0_PAR_RTS0_RTS,D0
-	move.b D0,MCF_GPIO_PAR_PSC0
-	/* Put PSC in UART mode */
-	move.b #MCF_PSC_SICR_SIM_UART,D0
-	move.b D0,MCF_PSC_SICR0
-	/* Reset Transmitter */
-	move.b #MCF_UART_UCR_RESET_TX,D0
-    	move.b D0,MCF_UART_UCR0
-	/* Reset Receiver */
-	move.b #MCF_UART_UCR_RESET_RX,D0
-	move.b D0,MCF_UART_UCR0
-	/* Reset Mode Register */
-	move.b #MCF_UART_UCR_RESET_MR,D0
-	move.b D0,MCF_UART_UCR0
-	/* No parity, 8-bits per character */
-	move.b #MCF_UART_UMR_PM_NONE+MCF_UART_UMR_BC_8,D0
-	move.b D0,MCF_UART_UMR0
-	/* No echo or loopback, 1 stop bit */
-	move.b #MCF_UART_UMR_CM_NORMAL+MCF_UART_UMR_SB_STOP_BITS_1,D0
-	move.b D0,MCF_UART_UMR0
-	/* Set Rx and Tx baud by timer */
-	move.b #MCF_UART_UCSR_RCS_SYS_CLK+MCF_UART_UCSR_TCS_SYS_CLK,D0
-	move.b D0,MCF_UART_UCSR0
-	/* Mask all UART interrupts */
-	clr.b MCF_UART_UIMR0  
-	/* Calculate baud settings */
-	move.l #(SYSTEM_CLOCK*1000000)/(19200 * 32),D0 // ubgs
-	move.b D0,D1
-	lsr.l #8,D0
-	move.b D0,MCF_UART_UBG10
-	move.b D1,MCF_UART_UBG20
-	/* Enable receiver and transmitter */
-	move.b #MCF_UART_UCR_TX_ENABLED+MCF_UART_UCR_RX_ENABLED,D0
-	move.b D0,MCF_UART_UCR0
-	/*
-	 * Enable Ethernet signals so that, if a cable is plugged into
-	 * the ports, the lines won't be floating and potentially cause
-	 * erroneous transmissions
-	 */
-#ifdef MCF547X /* MCF547X - COLDARI */
-	/* Just FEC0, FEC1 PINS are GPIO excecpted MDC and MDIO */
-	move.w #MCF_GPIO_PAR_FECI2CIRQ_PAR_E1MDC_SCL \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E1MDIO_SDA \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E0MDC \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E0MDIO \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E0MII \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E07 \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_IRQ6 \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_IRQ5,D0
-	move.w D0,MCF_GPIO_PAR_FECI2CIRQ
-	move.b #MCF_GPIO_PAR_DMA_PAR_DREQ0(MCF_GPIO_PAR_DMA_PAR_DREQx_DREQ) \
-	 + MCF_GPIO_PAR_DMA_PAR_DREQ1(MCF_GPIO_PAR_DMA_PAR_DREQx_DREQ) \
-	 + MCF_GPIO_PAR_DMA_PAR_DACK0(MCF_GPIO_PAR_DMA_PAR_DACKx_DACK) \
-	 + MCF_GPIO_PAR_DMA_PAR_DACK1(MCF_GPIO_PAR_DMA_PAR_DACKx_DACK),D0
-	move.b D0,MCF_GPIO_PAR_DMA
-	move.b #MCF_GPIO_PAR_PSC0_PAR_CTS0_CTS \
-	 + MCF_GPIO_PAR_PSC0_PAR_RTS0_RTS \
-	 + MCF_GPIO_PAR_PSC0_PAR_RXD0 \
-	 + MCF_GPIO_PAR_PSC0_PAR_TXD0,D0 // Serial (debug)
-	move.b D0,MCF_GPIO_PAR_PSC0
-	move.b #MCF_GPIO_PAR_PSC1_PAR_CTS1_CTS \
-	 + MCF_GPIO_PAR_PSC1_PAR_RTS1_RTS \
-	 + MCF_GPIO_PAR_PSC1_PAR_RXD1 \
-	 + MCF_GPIO_PAR_PSC1_PAR_TXD1,D0 // Serial (external)
-	move.b D0,MCF_GPIO_PAR_PSC1
-	move.b #MCF_GPIO_PAR_PSC2_PAR_CTS2_BCLK \
-	 + MCF_GPIO_PAR_PSC2_PAR_RTS2_FSYNC \
-	 + MCF_GPIO_PAR_PSC2_PAR_RXD2 \
-	 + MCF_GPIO_PAR_PSC2_PAR_TXD2,D0
-	move.b D0,MCF_GPIO_PAR_PSC2 // AC97 audio codec
-	move.b #MCF_GPIO_PAR_PSC3_PAR_CTS3_GPIO \
-	 + MCF_GPIO_PAR_PSC3_PAR_RTS3_GPIO \
-	 + MCF_GPIO_PAR_PSC3_PAR_RXD3 \
-	 + MCF_GPIO_PAR_PSC3_PAR_TXD3,D0 // IKBD (Eiffel)
-	move.b D0,MCF_GPIO_PAR_PSC3
-	move.w #MCF_GPIO_PAR_DSPI_PAR_CS5 \
-	 + MCF_GPIO_PAR_DSPI_PAR_CS3_DSPICS \
-	 + MCF_GPIO_PAR_DSPI_PAR_CS2_DSPICS \
-	 + MCF_GPIO_PAR_DSPI_PAR_CS0_DSPICS \
-	 + MCF_GPIO_PAR_DSPI_PAR_SCK_SCK \
-	 + MCF_GPIO_PAR_DSPI_PAR_SIN_SIN\
-	 + MCF_GPIO_PAR_DSPI_PAR_SOUT_SOUT,D0 
-	move.w D0,MCF_GPIO_PAR_DSPI
-	move.b #MCF_GPIO_PAR_TIMER_PAR_TIN3_IRQ \
-	 + MCF_GPIO_PAR_TIMER_PAR_TOUT3 \
-	 + MCF_GPIO_PAR_TIMER_PAR_TIN2_IRQ \
-	 + MCF_GPIO_PAR_TIMER_PAR_TOUT2,D0
-	move.b D0,MCF_GPIO_PAR_TIMER
-	/* Flexbus pins are enabled by default */
-#ifdef DEBUG
-	clr.b serial_mouse
-	lea debug101(PC),A0
-	bsr debug_display_string	
-#endif
-	/* The COLDARI has one 8MB flash */
-	move.l #MCF_FBCS_CSAR_BA(BOOT_FLASH_BASE),D0
-	move.l D0,MCF_FBCS_CSAR0
-	/* 
-	 * Determine the necessary wait states based on the defined system
-	 * period (XLB clock period) and the CLKIN to XLB ratio.
-	 * The flash has a max access time of 120ns - AM29LV640D.
-	 */
-	moveq #24,D0
-	move.l MCF_PCI_PCIGSCR,D2
-	lsr.l D0,D2
-	and.l #7,D2
-	mulu #SYSTEM_PERIOD_X10,D2
-	move.l #1200,D0
-	.chip 68060
-	divu D2,D0
-	.chip 5200
-	ext.l D0                 // ws
-	moveq #10,D2
-	asl.l D2,D0
-	or.l D0,D1               // cscr
-	move.l D1,MCF_FBCS_CSCR0
-	move.l #MCF_FBCS_CSMR_BAM_4M+MCF_FBCS_CSMR_WP+MCF_FBCS_CSMR_V,D0
-	move.l D0,MCF_FBCS_CSMR0
-             /* FPGA ATARI I/O on FBCS1/2/3 */
-	move.l #MCF_FBCS_CSAR_BA(FPGA_CS1_BASE),D0
-	move.l D0,MCF_FBCS_CSAR1
-	move.l #FPGA_CS1_ACCESS,D0
-	move.l D0,MCF_FBCS_CSCR1
-	move.l #MCF_FBCS_CSMR_BAM_64K+MCF_FBCS_CSMR_V,D0
-	move.l D0,MCF_FBCS_CSMR1
-	move.l #MCF_FBCS_CSAR_BA(FPGA_CS2_BASE),D0
-	move.l D0,MCF_FBCS_CSAR2
-	move.l #FPGA_CS2_ACCESS,D0
-	move.l D0,MCF_FBCS_CSCR2
-	move.l #MCF_FBCS_CSMR_BAM_128K+MCF_FBCS_CSMR_V,D0
-	move.l D0,MCF_FBCS_CSMR2
-	move.l #MCF_FBCS_CSAR_BA(FPGA_CS3_BASE),D0
-	move.l D0,MCF_FBCS_CSAR3
-	move.l #FPGA_CS2_ACCESS,D0
-	move.l D0,MCF_FBCS_CSCR3
-	move.l #MCF_FBCS_CSMR_BAM_64K+MCF_FBCS_CSMR_V,D0
-	move.l D0,MCF_FBCS_CSMR3
-#ifdef DEBUG
-	lea debug103(PC),A0
-	bsr debug_display_string	
-#endif
-	/*
-	 * Check to see if the SDRAM has already been initialized
-	 * by a run control tool
-	 */
-	lea .copy_tos(PC),A0
-	move.l A0,D0
-	moveq #24,D1
-	lsr.l D1,D0
-	beq .sdram_controller_ok // started from RAM (test)
-//	move.l MCF_SDRAMC_SDCR,D0
-//	and.l #MCF_SDRAMC_SDCR_REF,D0
-//	bne .sdram_controller_ok
-	/* Basic configuration and initialization - 8 x K4H510438 - DDR266 CL2 (512Mbits - 32M * 16) */
-	move.l #MCF_SDRAMC_SDRAMDS_SB_E(MCF_SDRAMC_SDRAMDS_DRIVE_16MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_C(MCF_SDRAMC_SDRAMDS_DRIVE_16MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_A(MCF_SDRAMC_SDRAMDS_DRIVE_16MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_S(MCF_SDRAMC_SDRAMDS_DRIVE_16MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_D(MCF_SDRAMC_SDRAMDS_DRIVE_16MA),D0
-	move.l D0,MCF_SDRAMC_SDRAMDS
-	move.l #MCF_SDRAMC_CSnCFG_CSBA(SDRAM_BASE) \
-	+ MCF_SDRAMC_CSnCFG_CSSZ(MCF_SDRAMC_CSnCFG_CSSZ_512MBYTE),D0
-	move.l D0,MCF_SDRAMC_CS0CFG
-	move.l #MCF_SDRAMC_SDCFG1_SRD2RW(7) \
-	 + MCF_SDRAMC_SDCFG1_SWT2RD(3) \
-	 + MCF_SDRAMC_SDCFG1_RDLAT(6) \
-	 + MCF_SDRAMC_SDCFG1_ACT2RW(2) \
-	 + MCF_SDRAMC_SDCFG1_PRE2ACT(1) \
-	 + MCF_SDRAMC_SDCFG1_REF2ACT(9) \
-	 + MCF_SDRAMC_SDCFG1_WTLAT(3),D0
-	move.l D0,MCF_SDRAMC_SDCFG1
-	move.l #MCF_SDRAMC_SDCFG2_BRD2PRE(4) \
-	 + MCF_SDRAMC_SDCFG2_BWT2RW(6) \
-	 + MCF_SDRAMC_SDCFG2_BRD2WT(3) \
-	 + MCF_SDRAMC_SDCFG2_BL(7),D0
-	move.l D0,MCF_SDRAMC_SDCFG2
-	/* Precharge and enable write to SDMR */
-	move.l #MCF_SDRAMC_SDCR_MODE_EN \
-	 + MCF_SDRAMC_SDCR_CKE \
-	 + MCF_SDRAMC_SDCR_DDR \
-	 + MCF_SDRAMC_SDCR_MUX(1) \
-	 + MCF_SDRAMC_SDCR_RCNT(15) \
-	 + MCF_SDRAMC_SDCR_IPALL,D0
-	move.l D0,MCF_SDRAMC_SDCR        
-	/* Write extended mode register */
-	lea MCF_SDRAMC_SDMR,A0
-	move.l #MCF_SDRAMC_SDMR_BNKAD_LEMR \
-	 + MCF_SDRAMC_SDMR_AD(0x0) \
-	 + MCF_SDRAMC_SDMR_CMD,(A0)
-	/* Write mode register and reset DLL */
-	move.l #MCF_SDRAMC_SDMR_BNKAD_LMR \
-	 + MCF_SDRAMC_SDMR_AD(0x123) \
-	 + MCF_SDRAMC_SDMR_CMD,(A0)
-	/* Execute a PALL command */
-	lea MCF_SDRAMC_SDCR,A0
-	move.l #MCF_SDRAMC_SDCR_IPALL,D0
-	or.l D0,(A0)
-	/* Perform two REF cycles */
-	move.l #MCF_SDRAMC_SDCR_IREF,D0
-	or.l D0,(A0)
-	move.l #MCF_SDRAMC_SDCR_IREF,D0
-	or.l D0,(A0)
-	/* Write mode register and clear reset DLL */
-	move.l #MCF_SDRAMC_SDMR_BNKAD_LMR \
-	 + MCF_SDRAMC_SDMR_AD(0x023) \
-	 + MCF_SDRAMC_SDMR_CMD,D0
-	move.l D0,MCF_SDRAMC_SDMR
-	/* Enable auto refresh and lock SDMR */
-	move.l #~MCF_SDRAMC_SDCR_MODE_EN,D0
-	and.l D0,(A0)
-	move.l #MCF_SDRAMC_SDCR_REF+MCF_SDRAMC_SDCR_DQS_OE(0xF),D0
-	or.l D0,(A0)
-#ifdef DEBUG	
-	lea debug119(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDRAMDS,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug120(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_CS0CFG,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug121(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDMR,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug122(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDCR,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug123(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDCFG1,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug124(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDCFG2,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-.sdram_controller_ok:
-#else /* MCF548X - M5484LITE */
-  	clr.b MCF_GPIO_PDDR_FECI2C;
-	move.w #MCF_GPIO_PAR_FECI2CIRQ_PAR_E1MDC_EMDC \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E1MDIO_EMDIO \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E1MII \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E17 \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E0MDC \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E0MDIO \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E0MII \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_E07 \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_SDA \
-              + MCF_GPIO_PAR_FECI2CIRQ_PAR_SCL \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_IRQ6 \
-	 + MCF_GPIO_PAR_FECI2CIRQ_PAR_IRQ5,D0
-	move.w D0,MCF_GPIO_PAR_FECI2CIRQ
-	move.b #MCF_GPIO_PAR_PSC3_PAR_CTS3_BCLK \
-	 + MCF_GPIO_PAR_PSC3_PAR_RTS3_FSYNC \
-	 + MCF_GPIO_PAR_PSC3_PAR_RXD3 \
-	 + MCF_GPIO_PAR_PSC3_PAR_TXD3,D0
-	move.b D0,MCF_GPIO_PAR_PSC3 // AC97 audio codec
-	/* TOUT0 as LED output */
-	move.b #MCF_GPIO_PAR_DMA_PAR_DREQ0(MCF_GPIO_PAR_DMA_PAR_DREQx_TIN) \
-	 + MCF_GPIO_PAR_DMA_PAR_DREQ1(MCF_GPIO_PAR_DMA_PAR_DREQx_TIN) \
-	 + MCF_GPIO_PAR_DMA_PAR_DACK0(MCF_GPIO_PAR_DMA_PAR_DACKx_TOUT) \
-	 + MCF_GPIO_PAR_DMA_PAR_DACK1(MCF_GPIO_PAR_DMA_PAR_DACKx_TOUT),D0
-	move.b D0,MCF_GPIO_PAR_DMA
-#ifdef DEBUG
-	clr.b serial_mouse
-	lea debug101(PC),A0
-	bsr debug_display_string	
-#endif
-	/* The M5474LITE/M5484LITE has one 4MB boot flash */
-	/* The M5485EVB has a 2MB boot flash */
-	move.l #MCF_FBCS_CSAR_BA(BOOT_FLASH_BASE),D0
-	move.l D0,MCF_FBCS_CSAR0
-	move.l #MCF_FBCS_CSCR_SWS(0) \
-	 + MCF_FBCS_CSCR_ASET(1) \
-	 + MCF_FBCS_CSCR_RDAH(0) \
-	 + MCF_FBCS_CSCR_WRAH(0) \
-	 + MCF_FBCS_CSCR_WS(5) \
-	 + MCF_FBCS_CSCR_AA \
-	 + MCF_FBCS_CSCR_PS_16,D1 // cscr
-	/* 
-	 * Determine the necessary wait states based on the defined system
-	 * period (XLB clock period) and the CLKIN to XLB ratio.
-	 * The boot flash has a max access time of 110ns.
-	 */
-	moveq #24,D0
-	move.l MCF_PCI_PCIGSCR,D2
-	lsr.l D0,D2
-	and.l #7,D2              // clk_ratio (2)
-	mulu #SYSTEM_PERIOD,D2   // fb_period (100)
-	move.l #110,D0
-	.chip 68060
-	divu D2,D0
-	.chip 5200
-	ext.l D0                 // ws
-	moveq #10,D2
-	asl.l D2,D0
-	or.l D0,D1               // cscr
-	move.l D1,MCF_FBCS_CSCR0
-	/* MCF5485EVB - 2MB flash */
-	move.l #MCF_FBCS_CSMR_BAM_2M+MCF_FBCS_CSMR_V,D0
-	move.l MCF_SIU_JTAGID,D1 // check the processor
-	and.l #MCF_SIU_JTAGID_PROCESSOR,D1
-	cmp.l #MCF_SIU_JTAGID_MCF5485,D1
-             beq.s .m5485evb          // M5485EVB
-	/* the M5484LITE - 4MB flash */
-	move.l #MCF_FBCS_CSMR_BAM_4M+MCF_FBCS_CSMR_V,D0
-.m5485evb:
-	move.l D0,MCF_FBCS_CSMR0
-#ifdef DEBUG
-	lea debug108(PC),A0
-	bsr debug_display_string
-#endif
-             /* CPLD on FBCS4/5 */
-	move.l #MCF_FBCS_CSAR_BA(FIRE_ENGINE_CS4_BASE),D0
-	move.l D0,MCF_FBCS_CSAR4
-	move.l #FIRE_ENGINE_CS4_ACCESS,D0
-	move.l D0,MCF_FBCS_CSCR4
-	move.l #MCF_FBCS_CSMR_BAM_256M+MCF_FBCS_CSMR_V,D0
-	move.l D0,MCF_FBCS_CSMR4
-	move.l #MCF_FBCS_CSAR_BA(FIRE_ENGINE_CS5_BASE),D0
-	move.l D0,MCF_FBCS_CSAR5
-	move.l #FIRE_ENGINE_CS5_ACCESS,D0
-	move.l D0,MCF_FBCS_CSCR5
-	move.l #MCF_FBCS_CSMR_BAM_256M+MCF_FBCS_CSMR_V,D0
-	move.l D0,MCF_FBCS_CSMR5
-	move.l MCF_PCI_PCIGSCR,D2
-	moveq #24,D0
-	lsr.l D0,D2
-	moveq #7,D1
-	and.l D1,D2
-	move.b FIRE_ENGINE_CPLD_HW_REVISION,D0
-	and.l #0xF0,D0
-	cmp.l #0xA0,D0
-	bne.s .bad_cpld
-	move.w FIRE_ENGINE_CS5_BASE+0x1000000,D1
-	moveq #2,D0
-	cmp.l D2,D0
-	bne.s .not_548x
-	or.l #0xFFFF8000,D1
-	bra.s .cpld_cpu
-.not_548x:
-	and.l #0x00007FFF,D1
-.cpld_cpu:
-	move.w D1,FIRE_ENGINE_CS5_BASE+0x1000000
-.bad_cpld:
-#ifdef DEBUG
-	lea debug109(PC),A0
-	bsr debug_display_string
-	move.b FIRE_ENGINE_CPLD_HW_REVISION,D0
-	bsr debug_hex_byte
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug110(PC),A0
-	bsr debug_display_string
-	move.b FIRE_ENGINE_CPLD_SW_REVISION,D0
-	bsr debug_hex_byte
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug103(PC),A0
-	bsr debug_display_string	
-#endif
-	/*
-	 * Check to see if the SDRAM has already been initialized
-	 * by a run control tool
-	 */
-	lea .copy_tos(PC),A0
-	move.l A0,D0
-	moveq #24,D1
-	lsr.l D1,D0
-	beq .sdram_controller_ok // started from RAM (test)
-//	move.l MCF_SDRAMC_SDCR,D0
-//	and.l #MCF_SDRAMC_SDCR_REF,D0
-//	bne .sdram_controller_ok
-#if 1
-	/* Basic configuration and initialization */
-	move.l #MCF_SDRAMC_SDRAMDS_SB_E(MCF_SDRAMC_SDRAMDS_DRIVE_8MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_C(MCF_SDRAMC_SDRAMDS_DRIVE_8MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_A(MCF_SDRAMC_SDRAMDS_DRIVE_8MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_S(MCF_SDRAMC_SDRAMDS_DRIVE_8MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_D(MCF_SDRAMC_SDRAMDS_DRIVE_8MA),D0
-	move.l D0,MCF_SDRAMC_SDRAMDS
-	move.l #MCF_SDRAMC_CSnCFG_CSBA(SDRAM_BASE) \
-	+ MCF_SDRAMC_CSnCFG_CSSZ(MCF_SDRAMC_CSnCFG_CSSZ_64MBYTE),D0
-	move.l D0,MCF_SDRAMC_CS0CFG
-	move.l #MCF_SDRAMC_SDCFG1_SRD2RW(5) \
-	 + MCF_SDRAMC_SDCFG1_SWT2RD(3) \
-	 + MCF_SDRAMC_SDCFG1_RDLAT(6) \
-	 + MCF_SDRAMC_SDCFG1_ACT2RW(1) \
-	 + MCF_SDRAMC_SDCFG1_PRE2ACT(2) \
-	 + MCF_SDRAMC_SDCFG1_REF2ACT(7) \
-	 + MCF_SDRAMC_SDCFG1_WTLAT(3),D0
-	move.l D0,MCF_SDRAMC_SDCFG1
-	move.l #MCF_SDRAMC_SDCFG2_BRD2PRE(4) \
-	 + MCF_SDRAMC_SDCFG2_BWT2RW(6) \
-	 + MCF_SDRAMC_SDCFG2_BRD2WT(3) \
-	 + MCF_SDRAMC_SDCFG2_BL(7),D0
-	move.l D0,MCF_SDRAMC_SDCFG2
-	/* Precharge and enable write to SDMR */
-	move.l #MCF_SDRAMC_SDCR_MODE_EN \
-	 + MCF_SDRAMC_SDCR_CKE \
-	 + MCF_SDRAMC_SDCR_DDR \
-	 + MCF_SDRAMC_SDCR_MUX(1) \
-	 + MCF_SDRAMC_SDCR_RCNT(15) \
-	 + MCF_SDRAMC_SDCR_IPALL,D0
-	move.l D0,MCF_SDRAMC_SDCR        
-	/* Write extended mode register */
-	lea MCF_SDRAMC_SDMR,A0
-	move.l #MCF_SDRAMC_SDMR_BNKAD_LEMR \
-	 + MCF_SDRAMC_SDMR_AD(0x0) \
-	 + MCF_SDRAMC_SDMR_CMD,(A0)
-	/* Write mode register and reset DLL */
-	move.l #MCF_SDRAMC_SDMR_BNKAD_LMR \
-	 + MCF_SDRAMC_SDMR_AD(0x123) \
-	 + MCF_SDRAMC_SDMR_CMD,(A0)
-	/* Execute a PALL command */
-	lea MCF_SDRAMC_SDCR,A0
-	move.l #MCF_SDRAMC_SDCR_IPALL,D0
-	or.l D0,(A0)
-	/* Perform two REF cycles */
-	move.l #MCF_SDRAMC_SDCR_IREF,D0
-	or.l D0,(A0)
-	move.l #MCF_SDRAMC_SDCR_IREF,D0
-	or.l D0,(A0)
-	/* Write mode register and clear reset DLL */
-	move.l #MCF_SDRAMC_SDMR_BNKAD_LMR \
-	 + MCF_SDRAMC_SDMR_AD(0x023) \
-	 + MCF_SDRAMC_SDMR_CMD,D0
-	move.l D0,MCF_SDRAMC_SDMR
-	/* Enable auto refresh and lock SDMR */
-	move.l #~MCF_SDRAMC_SDCR_MODE_EN,D0
-	and.l D0,(A0)
-	move.l #MCF_SDRAMC_SDCR_REF+MCF_SDRAMC_SDCR_DQS_OE(0xF),D0
-	or.l D0,(A0)
-#else	// original dBUG config
-	/* Basic configuration and initialization */
-	move.l #MCF_SDRAMC_SDRAMDS_SB_E(MCF_SDRAMC_SDRAMDS_DRIVE_8MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_C(MCF_SDRAMC_SDRAMDS_DRIVE_8MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_A(MCF_SDRAMC_SDRAMDS_DRIVE_8MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_S(MCF_SDRAMC_SDRAMDS_DRIVE_8MA) \
-	 + MCF_SDRAMC_SDRAMDS_SB_D(MCF_SDRAMC_SDRAMDS_DRIVE_8MA),D0
-	move.l D0,MCF_SDRAMC_SDRAMDS
-	move.l #MCF_SDRAMC_CSnCFG_CSBA(SDRAM_BASE) \
-	+ MCF_SDRAMC_CSnCFG_CSSZ(MCF_SDRAMC_CSnCFG_CSSZ_64MBYTE),D0
-	move.l D0,MCF_SDRAMC_CS0CFG
-	move.l #MCF_SDRAMC_SDCFG1_SRD2RW(7) \
-	 + MCF_SDRAMC_SDCFG1_SWT2RD(SDRAM_TWR+1) \
-	 + MCF_SDRAMC_SDCFG1_RDLAT(SDRAM_CASL+2) \
-	 + MCF_SDRAMC_SDCFG1_ACT2RW((SDRAM_TRCD/SYSTEM_PERIOD) - 1) \
-	 + MCF_SDRAMC_SDCFG1_PRE2ACT((SDRAM_TRP/SYSTEM_PERIOD) - 1) \
-	 + MCF_SDRAMC_SDCFG1_REF2ACT((SDRAM_TRFC/SYSTEM_PERIOD) - 1) \
-	 + MCF_SDRAMC_SDCFG1_WTLAT(3),D0
-	move.l D0,MCF_SDRAMC_SDCFG1
-	move.l #MCF_SDRAMC_SDCFG2_BRD2PRE(4) \
-	 + MCF_SDRAMC_SDCFG2_BWT2RW(6) \
-	 + MCF_SDRAMC_SDCFG2_BRD2WT(3) \
-	 + MCF_SDRAMC_SDCFG2_BL(7),D0
-	move.l D0,MCF_SDRAMC_SDCFG2
-	/* Precharge and enable write to SDMR */
-	move.l #MCF_SDRAMC_SDCR_MODE_EN \
-	 + MCF_SDRAMC_SDCR_CKE \
-	 + MCF_SDRAMC_SDCR_DDR \
-	 + MCF_SDRAMC_SDCR_MUX(1) \
-	 + MCF_SDRAMC_SDCR_RCNT((SDRAM_TREFI/(SYSTEM_PERIOD*64))-1) \
-	 + MCF_SDRAMC_SDCR_IPALL,D0
-	move.l D0,MCF_SDRAMC_SDCR        
-	/* Write extended mode register */
-	lea MCF_SDRAMC_SDMR,A0
-	move.l #MCF_SDRAMC_SDMR_BNKAD_LEMR \
-	 + MCF_SDRAMC_SDMR_AD(0x0) \
-	 + MCF_SDRAMC_SDMR_CMD,(A0)
-	/* Write mode register and reset DLL */
-	move.l #MCF_SDRAMC_SDMR_BNKAD_LMR \
-	 + MCF_SDRAMC_SDMR_AD(0x163) \
-	 + MCF_SDRAMC_SDMR_CMD,(A0)
-	/* Execute a PALL command */
-	lea MCF_SDRAMC_SDCR,A0
-	move.l #MCF_SDRAMC_SDCR_IPALL,D0
-	or.l D0,(A0)
-	/* Perform two REF cycles */
-	move.l #MCF_SDRAMC_SDCR_IREF,D0
-	or.l D0,(A0)
-	move.l #MCF_SDRAMC_SDCR_IREF,D0
-	or.l D0,(A0)
-	/* Write mode register and clear reset DLL  */
-	move.l #MCF_SDRAMC_SDMR_BNKAD_LMR \
-	 + MCF_SDRAMC_SDMR_AD(0x063) \
-	 + MCF_SDRAMC_SDMR_CMD,D0
-	move.l D0,MCF_SDRAMC_SDMR
-	/* Enable auto refresh and lock SDMR */
-	move.l #~MCF_SDRAMC_SDCR_MODE_EN,D0
-	and.l D0,(A0)
-	move.l #MCF_SDRAMC_SDCR_REF+MCF_SDRAMC_SDCR_DQS_OE(0xF),D0
-	or.l D0,(A0)
-#endif
-#ifdef DEBUG	
-	lea debug119(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDRAMDS,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug120(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_CS0CFG,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug121(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDMR,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug122(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDCR,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug123(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDCFG1,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	lea debug124(PC),A0
-	bsr debug_display_string
-	move.l MCF_SDRAMC_SDCFG2,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-.sdram_controller_ok:
-#ifdef DEBUG
-	lea debug100(PC),A0
-	bsr debug_display_string	
-#endif
-	/* FlexCAN config */
-	/* TOUT2 pin for CANTX1, TIN2 pin for CANRX1 */ 
-	move.b #MCF_GPIO_PAR_TIMER_PAR_TIN3_TIN \
-	 + MCF_GPIO_PAR_TIMER_PAR_TOUT3 \
-	 + MCF_GPIO_PAR_TIMER_PAR_TIN2_CANRX,D0
-	move.b D0,MCF_GPIO_PAR_TIMER
-	clr.w MCF_GPIO_PAR_DSPI
-	/* FlexCAN 0 disabled, FlexCAN 1 reset */
-	clr.w MCF_CAN_IMASK0
-	move.l #0x1FFFFFFF,D0
-	move.l D0,MCF_CAN_RXGMASK0
-	move.l D0,MCF_CAN_RX14MASK0
-	move.l D0,MCF_CAN_RX15MASK0  
-	clr.l MCF_CAN_CANCTRL0
-	move.l #MCF_CAN_CANMCR_MDIS \
-	 + MCF_CAN_CANMCR_FRZ \
-	 + MCF_CAN_CANMCR_HALT \
-	 + MCF_CAN_CANMCR_MAXMB(15),D0
-	move.l D0,MCF_CAN_CANMCR0
-	clr.w MCF_CAN_IMASK1
-	move.l #0x1FFFFFFF,D0
-	move.l D0,MCF_CAN_RXGMASK1
-	move.l D0,MCF_CAN_RX14MASK1
-	move.l D0,MCF_CAN_RX15MASK1
-	clr.l MCF_CAN_CANCTRL1
-	move.l #MCF_CAN_CANMCR_FRZ \
-	 + MCF_CAN_CANMCR_HALT \
-	 + MCF_CAN_CANMCR_MAXMB(15),D0
-	move.l D0,MCF_CAN_CANMCR1
-/*	
-	move.l #~MCF_CAN_CANMCR_FRZ,D0
-	and.l D0,MCF_CAN_CANMCR1
-	move.l #MCF_CAN_CANMCR_SOFTRST,D0
-	or.l D0,MCF_CAN_CANMCR1
-.test_reset_can:
-	move.l MCF_CAN_CANMCR1,D1
-	and.l D1,D0
-	bne.s .test_reset_can
-*/
-#endif /* MCF547X */
-#endif /* MCF5445X */
-#ifdef DEBUG
-	lea debug104(PC),A0
-	bsr debug_display_string	
-	lea .copy_tos(PC),A0
-	move.l A0,D0
-	and.l #0xFF000000,D0
-	lea (FLASH_TOS_FIRE_ENGINE & 0xFFFFFF),A0
-	add.l A0,D0
-	bsr debug_hex_long
-	lea debug104b(PC),A0
-	bsr debug_display_string	
-	lea FLASH_ADR,A0         // TOS404
-	move.l A0,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char	
-	moveq #10,D0
-	bsr debug_display_char	
-#endif
-	/* copy FLASH in SDRAM */	
-	lea .copy_tos(PC),A0
-	move.l A0,D0
-	and.l #0xFF000000,D0
-	lea (FLASH_TOS_FIRE_ENGINE & 0xFFFFFF),A0
-	add.l D0,A0
-	lea FLASH_ADR,A1         // TOS404
-	move.l #FLASH_SIZE/16,D0
-.copy_tos:
-		move.l (A0)+,(A1)+
-		move.l (A0)+,(A1)+
-		move.l (A0)+,(A1)+
-		move.l (A0)+,(A1)+
-	subq.l #1,D0
-	bgt.s .copy_tos
-	lea FLASH_ADR,A1
-	lea restart_emulation,A0
-	move.l A0,4(A1)
-	move.l A0,0x10(A1)       // header TOS404
-	move.w #0x4EF9,D0
-	move.w D0,0x30(A1)
-	move.l A0,0x32(A1)       // JMP
-	lea 0,A2                 // vectors
-	move.l (A1),(A2)
-	move.l A0,4(A2)          // PC
-	/* update TOS404 checksum */
-	lea crctab(PC),A0
-	moveq #0,D0
-	moveq #0,D1              // crc
-	moveq #0,D3
-	move.l #(FLASH_SIZE/2)-2,D7
-.calc_crc:
-		move.b (A1)+,D0
-		move.w D1,D2          // crc
-		lsr.l #8,D2
-		eor.l D0,D2
-		and.l #0xFF,D2
-		move.w (A0,D2.L*2),D3 // crc2		
-		asl.l #8,D1           // crc
-		eor.l D3,D1
-	subq.l #1,D7
-	bgt.s .calc_crc
-	move.w D1,(A1)           // crc
-#ifdef DEBUG
-	lea debug105(PC),A0
-	bsr debug_display_string
-#endif
-	/* Init pseudo STRAM */
-	bsr init_stram
-	lea reset_board(PC),A1
-	lea 8,A0
-	moveq #125,D0
-.loop_init_vectors:
-		move.l A1,(A0)+
-		move.l A1,(A0)+
-	subq.l #1,D0
-	bpl.s .loop_init_vectors
-	lea SDRAM_SIZE-SDRAM_RESERVED,A0
-	move.l A0,ramtop
-#ifdef DEBUG
-	lea debug107(PC),A0
-	bsr debug_display_string	
-#endif
-	lea _init_mmu,A0
-	lea _update_tlb,A1
-	lea _LZ_Uncompress,A2
-	/* Start cf68klib in RAM */
-	jmp CF68KLIB
-	
-crctab:
-	dc.w 0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7
-	dc.w 0x8108,0x9129,0xa14a,0xb16b,0xc18c,0xd1ad,0xe1ce,0xf1ef
-	dc.w 0x1231,0x0210,0x3273,0x2252,0x52b5,0x4294,0x72f7,0x62d6
-	dc.w 0x9339,0x8318,0xb37b,0xa35a,0xd3bd,0xc39c,0xf3ff,0xe3de
-	dc.w 0x2462,0x3443,0x0420,0x1401,0x64e6,0x74c7,0x44a4,0x5485
-	dc.w 0xa56a,0xb54b,0x8528,0x9509,0xe5ee,0xf5cf,0xc5ac,0xd58d
-	dc.w 0x3653,0x2672,0x1611,0x0630,0x76d7,0x66f6,0x5695,0x46b4
-	dc.w 0xb75b,0xa77a,0x9719,0x8738,0xf7df,0xe7fe,0xd79d,0xc7bc
-	dc.w 0x48c4,0x58e5,0x6886,0x78a7,0x0840,0x1861,0x2802,0x3823
-	dc.w 0xc9cc,0xd9ed,0xe98e,0xf9af,0x8948,0x9969,0xa90a,0xb92b
-	dc.w 0x5af5,0x4ad4,0x7ab7,0x6a96,0x1a71,0x0a50,0x3a33,0x2a12
-	dc.w 0xdbfd,0xcbdc,0xfbbf,0xeb9e,0x9b79,0x8b58,0xbb3b,0xab1a
-	dc.w 0x6ca6,0x7c87,0x4ce4,0x5cc5,0x2c22,0x3c03,0x0c60,0x1c41
-	dc.w 0xedae,0xfd8f,0xcdec,0xddcd,0xad2a,0xbd0b,0x8d68,0x9d49
-	dc.w 0x7e97,0x6eb6,0x5ed5,0x4ef4,0x3e13,0x2e32,0x1e51,0x0e70
-	dc.w 0xff9f,0xefbe,0xdfdd,0xcffc,0xbf1b,0xaf3a,0x9f59,0x8f78
-	dc.w 0x9188,0x81a9,0xb1ca,0xa1eb,0xd10c,0xc12d,0xf14e,0xe16f
-	dc.w 0x1080,0x00a1,0x30c2,0x20e3,0x5004,0x4025,0x7046,0x6067
-	dc.w 0x83b9,0x9398,0xa3fb,0xb3da,0xc33d,0xd31c,0xe37f,0xf35e
-	dc.w 0x02b1,0x1290,0x22f3,0x32d2,0x4235,0x5214,0x6277,0x7256
-	dc.w 0xb5ea,0xa5cb,0x95a8,0x8589,0xf56e,0xe54f,0xd52c,0xc50d
-	dc.w 0x34e2,0x24c3,0x14a0,0x0481,0x7466,0x6447,0x5424,0x4405
-	dc.w 0xa7db,0xb7fa,0x8799,0x97b8,0xe75f,0xf77e,0xc71d,0xd73c
-	dc.w 0x26d3,0x36f2,0x0691,0x16b0,0x6657,0x7676,0x4615,0x5634
-	dc.w 0xd94c,0xc96d,0xf90e,0xe92f,0x99c8,0x89e9,0xb98a,0xa9ab
-	dc.w 0x5844,0x4865,0x7806,0x6827,0x18c0,0x08e1,0x3882,0x28a3
-	dc.w 0xcb7d,0xdb5c,0xeb3f,0xfb1e,0x8bf9,0x9bd8,0xabbb,0xbb9a
-	dc.w 0x4a75,0x5a54,0x6a37,0x7a16,0x0af1,0x1ad0,0x2ab3,0x3a92
-	dc.w 0xfd2e,0xed0f,0xdd6c,0xcd4d,0xbdaa,0xad8b,0x9de8,0x8dc9
-	dc.w 0x7c26,0x6c07,0x5c64,0x4c45,0x3ca2,0x2c83,0x1ce0,0x0cc1
-	dc.w 0xef1f,0xff3e,0xcf5d,0xdf7c,0xaf9b,0xbfba,0x8fd9,0x9ff8
-	dc.w 0x6e17,0x7e36,0x4e55,0x5e74,0x2e93,0x3eb2,0x0ed1,0x1ef0
-
-restart_emulation:
-
-//	lea library_data_area,A0 // 1024 bytes
-//	move.w 68(A0),D0         // reg_sr
-//	and.l #0x2000,D0
-//	bne.s .super_ok
-#ifdef DEBUG
-	lea debug112(PC),A0
-	bsr debug_display_string
-#endif
-reset_board:
-#ifdef MCF5445X
-  	move.w #SCM_CWCR_CWE + SCM_CWCR_CWRI(2) + SCM_CWCR_CWT(8),D0
-  	move.w D0,MCF_SCM_CWCR
-#else /* MCF548X */
-	clr.l MCF_GPT_GMS0 
-	move.l #0x640001,D0
-	move.l D0,MCF_GPT_GCIR0
-	move.l #MCF_GPT_GMS_TMS_GPIO + MCF_GPT_GMS_CE + MCF_GPT_GMS_WDEN,D0
-	move.l D0,MCF_GPT_GMS0 // reset watchdog
-#endif /* MCF5454X */
-.wait_reset_board:
-	nop
-	bra.s .wait_reset_board
-.super_ok:
-#ifdef DEBUG
-	lea debug111(PC),A0
-	bsr debug_display_string
-#endif
-	move.w #0x2700,SR
-	moveq #0,D0
-	movec.l D0,VBR
-	bsr disable_interrupts
-	/* Invalidate the data, instruction, and branch caches */
-	move.l #CACHE_DISABLE_MODE,D0 
-	movec.l D0,CACR
-	move.l memvalid,D0
-	cmp.l #0x752019F3,D0
-	bne.s .init_stram
-	move.l memval2,D0
-	cmp.l #0x237698AA,D0
-	bne.s .init_stram
-	move.l memval3,D0
-	cmp.l #0x5555AAAA,D0
-	beq.s .no_init_stram
-.init_stram:
-#ifdef DEBUG
-	lea debug105(PC),A0
-	bsr debug_display_string
-#endif
-	bsr init_stram
-.no_init_stram:
-#ifdef DEBUG
-	lea debug106(PC),A0
-	bsr debug_display_string	
-#endif
-	jmp 0xE001DA
-
-
-disable_interrupts:
-
-#ifdef MCF5445X
-	lea MCF_INTC_ICR0+8,A0
-	moveq #8,D0
-.clear_int_loop:
-		clr.b (A0)+
-		addq.l #1,D0
-	cmp.l #64,D0
-	bcs.s .clear_int_loop
-	lea MCF_INTC_ICR1+33,A0
-	moveq #33,D0
-.clear_int_loop2:
-		clr.b (A0)+
-		addq.l #1,D0
-	cmp.l #57,D0
-	bcs.s .clear_int_loop2
-	moveq #-1,D0
-	move.l D0,MCF_INTC_IMRL0
-	move.l D0,MCF_INTC_IMRH0
-	move.l D0,MCF_INTC_IMRL1
-	move.l D0,MCF_INTC_IMRH1
-#else /* MCF548X */
-	lea MCF_INTC_ICR15,A0
-	moveq #15,D0
-.clear_int_loop:
-		clr.b (A0)+
-		addq.l #1,D0
-	cmp.l #64,D0
-	bcs.s .clear_int_loop
-	moveq #-1,D0
-	move.l D0,MCF_INTC_IMRL
-	move.l D0,MCF_INTC_IMRH
-#endif /* MCF5445X */
-	rts
-
-init_stram:
-
-	lea FLASH_ADR,A4         // TOS404
-	lea .started_from_flash(PC),A0
-	move.l A0,D0
-	moveq #24,D1
-	lsr.l D1,D0
-	bne.s .started_from_flash
-	move.l A0,D0
-	and.l #0xF00000,D0
-	move.l D0,A4
-.started_from_flash:
-	move.l A4,D7             // end pseudo STRAM
-	sub.l #0x400,D7
-	moveq #0,D0
-	move.l D0,D1
-	move.l D0,D2
-	move.l D0,D3
-	move.l D0,A0
-	move.l D1,A1
-	move.l D2,A2
-	move.l D3,A3
-	lsr.l #8,D7              // / 256
-.loop_init_stram:
-		lea -32(A4),A4
-		movem.l D0-D3/A0-A3,(A4)
-		lea -32(A4),A4
-		movem.l D0-D3/A0-A3,(A4)
-		lea -32(A4),A4
-		movem.l D0-D3/A0-A3,(A4)
-		lea -32(A4),A4
-		movem.l D0-D3/A0-A3,(A4)
-		lea -32(A4),A4
-		movem.l D0-D3/A0-A3,(A4)
-		lea -32(A4),A4
-		movem.l D0-D3/A0-A3,(A4)
-		lea -32(A4),A4
-		movem.l D0-D3/A0-A3,(A4)
-		lea -32(A4),A4
-		movem.l D0-D3/A0-A3,(A4)
-	subq.l #1,D7
-	bgt.s .loop_init_stram
-	lea FLASH_ADR,A0         // TOS404
-	move.l A0,phystop
-	move.l #0x1357BD13,D0
-	move.l D0,ramvalid
-	rts
-	
-before_init_cookies:
-
-#ifdef DEBUG
-	lea debug113(PC),A0
-	bsr debug_display_string
-#endif
-	lea FLASH_ADR,A0
-	lea 0x940,A1
-	moveq #0x2F,D0
-.copy_header_tos:
-		move.b (A0)+,(A1)+
-	subq.l #1,D0
-	bpl.s .copy_header_tos
-	lea .code_940(PC),A0
-	lea 0x940,A1
-	move.w (A0)+,D0
-	move.w D0,-6(A1)
-	move.l 4(A1),-4(A1)
-	addq.l #4,A0
-	move.w (A0)+,(A1)
-	move.w 0x1E(A1),D0
-	move.w D0,0x1C(A1)
-	move.l A1,_sysbase
-	lea 0x980,A0             // buffer cookies
-	rts
-.code_940:
-	jmp 0x12345678
-	bra.s .code_940
-
-#ifdef DEBUG
-
-debug100:	.ascii "FlexCAN config init"
-	.byte 13,10,0
-#ifdef MF5445X /* M54455EVB */
-debug101:    .ascii "16MB boot flash base address init"
-#else
-#ifdef MCF547X /* MCF548X - COLDARI */
-debug101:    .ascii "8MB boot flash base address init"
-#else /* MCF548X - M5484LITE */
-debug101:    .ascii "4MB boot flash base address init"
-#endif /* MCF547X */
-#endif /* MCF5445X */
-	.byte 13,10,0
-
-debug103:	.ascii "SDRAM controller init"
-	.byte 13,10,0
-debug104:	.asciz "Copy FLASH in SDRAM, 0x"
-debug104b:	.asciz " to 0x"
-debug105:	.ascii "Init pseudo STRAM"
-	.byte 13,10,0
-debug106:	.ascii "Re-"
-debug107:	.ascii "Start cf68klib"
-	.byte 13,10,0
-debug108:	.ascii "CPLD base address init"
-	.byte 13,10,0
-debug109:	.asciz "CPLD HW revision "
-debug110:	.asciz "CPLD SW revision "
-debug111:	.ascii "Reset"
-	.byte 13,10,0
-debug112:	.ascii "Null pointer ?"
-	.byte 13,10,0
-debug113:	.ascii "Init cookies"
-	.byte 13,10,13,13,0
-debug114:	.ascii "Install PCI BIOS"
-	.byte 13,10,0
-debug115:	.asciz "Add SDRAM ramtop: 0x"
-debug116:	.ascii "Init SDRAM"
-	.byte 13,10,0
-debug117:	.ascii "Menu boot"
-	.byte 13,10,0
-debug118:	.asciz "Memory for PCI drivers at 0x"
-debug119:	.asciz "SDRAMC_SDRAMDS 0x"
-debug120:	.asciz "SDRAMC_CS0CFG 0x"
-debug121:	.asciz "SDRAMC_SDMR 0x"
-debug122:	.asciz "SDRAMC_SDCR 0x"
-debug123:	.asciz "SDRAMC_SDCFG1 0x"
-debug124:	.asciz "SDRAMC_SDCFG2 0x"
-debug125:	.asciz "BPB: "
-debug126:	.asciz "IDE error (code - STATUS - ERROR) "
-debug127:	.asciz "hdv_rw 0x"
-debug128:	.asciz "pun_ptr 0x"
-debug129:	.asciz "drvbits 0x"
-debug130:	.asciz "SCSCDRV In cmd "
-debug131:	.asciz "SCSIDRV Out cmd "
-debug132:	.asciz "XHDI XHReadWrite 0x"
-debug133:	.ascii "XHDI XHInqTarget"
-	.byte 13,10,0
-debug134:	.ascii "XHDI XHInqDev"
-	.byte 13,10,0
-debug135:	.ascii "XHDI XHInqDriver"
-	.byte 13,10,0
-debug136:	.ascii "XHDI XHInqDev2"
-	.byte 13,10,0
-debug137:	.ascii "XHDI XHDOSLimits"
-	.byte 13,10,0
-debug138:	.ascii "SCSCDRV Open"
-	.byte 13,10,0
-debug139:	.ascii "SCSIDRV Close"
-	.byte 13,10,0
-debug140:	.ascii "SCSIDRV Error"
-	.byte 13,10,0
-debug141:	.ascii "SCSIDRV RescanBus"
-	.byte 13,10,0
-debug142:	.ascii "SCSIDRV CheckDev"
-	.byte 13,10,0
-debug143:	.ascii "SCSIDRV InquireBus"
-	.byte 13,10,0
-debug144:	.ascii "SCSIDRV InquireSCSI"
-	.byte 13,10,0
-debug145:	.asciz " ret: 0x"
-
-	.align 2
-
-debug_display_string:
-
-	move.l D0,-(SP)
-	move.l A0,-(SP)
-.dds2:
-		move.b (A0)+,D0
-		beq.s .dds1
-		bsr debug_display_char
-	bra.s .dds2
-.dds1:
-	move.l (SP)+,A0
-	move.l (SP)+,D0
-	rts
-
-debug_hex_long:
-	move.l D0,-(SP)
-	swap D0
-	bsr.s debug_hex_word
-	move.l (SP)+,D0
-debug_hex_word:
-	move.w D0,-(SP)
-	lsr.l #8,D0          
-	bsr.s debug_hex_byte     
-	move.w (SP)+,D0
-debug_hex_byte:
-	move.w D0,-(SP)
-	lsr.l #4,D0        
-	bsr.s debug_hex_char      
-	move.w (SP)+,D0      
-debug_hex_char:
-	and.l #0xF,D0      
-	or.l #0x30,D0      
-	cmp.l #0x3A,D0     
-	bcs.s debug_display_char  
-	addq.l #7,D0   
-
-debug_display_char:
-
-	tst.b serial_mouse
-	bne.s .no_debug
-	move.l D1,-(SP)
-.wait_uart:
-	move.b MCF_UART_USR0,D1
-	and.l  #MCF_UART_USR_TXRDY,D1
-	beq.s .wait_uart
-	move.b D0,MCF_UART_UTB0 // send the character
-	move.l (SP)+,D1
-.no_debug:
-	rts
-	
-#endif /* DEBUG */
-
-	.chip 68060
-	
-#else /* ATARI - 68060 */
 
 init_060:
 
@@ -1760,39 +330,8 @@ init_060:
 .end_init_060:
 	jmp 0x00E000C8
 
-#endif /* COLDFIRE */
-
 init_sdram:
 
-#ifdef COLDFIRE
-	lea -56(SP),SP
-	movem.l D1-A6,(SP)
-	move.w SR,D0
-	move.w D0,-(SP)
-	or.l #0x700,D0           // mask interrupts
-	move.w D0,SR
-	move.l #CACHE_DISABLE_MODE,D0 // invalidate whole cache
-	movec D0,CACR
-	nop
-	move.l #CACHE_ENABLE_MODE,D0 // enable caches
-	movec D0,CACR
-	move.w (SP)+,D0
-	move.w D0,SR
-	pea linea000(PC)
-	move.w #47,-(SP)         // TRAP #15
-	move.w #5,-(SP)          // Setexec
-	trap #13
-	addq.l #8,SP             // MAC instruction on Coldfire use opcodes 0xAxxx
-#ifdef MCF5445X /* M54455EVB */
-	moveq #2,D0              // SDRAM 256MB
-#else
-#ifdef MCF547X /* MCF547X - COLDARI */
-	moveq #3,D0              // SDRAM 512MB
-#else /* MCF548X - M5484LITE */
-	moveq #0,D0              // SDRAM 64MB
-#endif /* MCF547X */
-#endif /* MCF5445X */
-#else /* ATARI */
 	movem.l D1-A6,-(SP)
 	bclr #5,0xFFFFFA07       // mask timer A
 	move.w SR,-(SP)
@@ -1827,14 +366,10 @@ init_sdram:
 	bset #2,0xFFFF8007       // blitter 16 MHz
 .blitter_slow:
 	bsr ct60_configure_sdram
-#endif /* COLDFIRE */
 	clr.l ramtop
 	clr.l ramvalid
 	move.l D0,D5             // save return value of ct60_configure_sdram
 	bmi .error_pci           // error SDRAM => no PCI
-#ifdef COLDFIRE
-	move.l #SDRAM_SIZE-SDRAM_RESERVED,D1
-#else
 	add.w #26,D0             // size 0-3 for 64MB-512MB
 	moveq #0,D1
 	bset D0,D1
@@ -1846,7 +381,6 @@ init_sdram:
 	movec.l PCR,D0
 	btst #16,D0
 	bne .error_pci           // EC or LC
-#endif
 	move.l D1,ramtop
 	move.l #0x1357BD13,ramvalid
 	move.l _sysbase,A0       // header ROM
@@ -1857,41 +391,10 @@ init_sdram:
 	beq .error_pci
 	cmp.b #8,D1              // ALT
 	beq .error_pci
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug114(PC),A0
-	bsr debug_display_string
-#endif
-#endif
 	move.w #1,-(SP)
 	move.w #299,-(SP)        // install PCI BIOS
 	trap #14
 	addq.l #4,SP
-#ifdef COLDFIRE
-	tst.w D0
-	bmi .error_pci
-	clr.w -(SP)                       // STRAM
-	move.l #PCI_DRIVERS_SIZE,-(SP)    // size for bss
-	move.w #0x44,-(SP)                // Mxalloc
-	trap #1 
-	addq.l #8,SP
-	tst.l D0
-	beq .error_pci
-#ifdef DEBUG
-	move.l D0,-(SP)
-	lea debug118(PC),A0
-	bsr debug_display_string
-	move.l (SP),D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.l (SP)+,D0
-#endif
-	move.l D0,A0
-	move.l #0x5F504349,(A0)  // _PCI
-#else /* 68060 */
 	tst.w D0
 	bmi.s .no_swap_ide_ctpci
 	clr.l -(SP)
@@ -1936,21 +439,10 @@ init_sdram:
 	jsr (A0)
 	addq.l #8,SP
 .not_compressed_pci_drivers:
-#endif /* COLDFIRE */
 	bsr test_pci_drivers
 	bne.s .error_pci
 	jsr 4(A0)                // drivers PCI in flash, init
 .error_pci:
-#ifdef COLDFIRE
-	move.l _v_bas_ad,D0
-	cmp.l #0x01000000,D0
-	bcc.s .graphic_card
-	moveq #0x1B,D0           // clear screen
-	bsr display_char
-	moveq #0x45,D0
-	bsr display_char
-.graphic_card:
-#endif
 	bsr spaces
 	lea message0(PC),A0
 	cmp.w #2,0x3E86          // number of planes
@@ -1959,69 +451,6 @@ init_sdram:
 .title_colors:
 	bsr display_string_single
 	bsr spaces
-#ifdef COLDFIRE
-#ifdef MCF5445X
-	move.w MCF_CCM_CIR,D0
-	and.l #CCM_CIR_PIN_MASK,D0
-	lea message8(PC),A0
-	cmp.l #CCM_CIR_PIN_MCF54454,D0
-	beq.s .v4m
-	lea message8a(PC),A0
-	cmp.l #CCM_CIR_PIN_MCF54453,D0
-	beq.s .v4m
-	lea message8b(PC),A0
-	cmp.l #CCM_CIR_PIN_MCF54452,D0
-	beq.s .v4m
-	lea message8c(PC),A0
-	cmp.l #CCM_CIR_PIN_MCF54451,D0
-	beq.s .v4m
-	lea message8d(PC),A0
-	cmp.l #CCM_CIR_PIN_MCF54450,D0	
-	lea message10(PC),A0
-.v4m:
-#else /* MCF548X */
-	move.l MCF_SIU_JTAGID,D0
-	and.l #MCF_SIU_JTAGID_PROCESSOR,D0
-	lea message8(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5485,D0
-	beq .v4e
-	lea message8a(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5484,D0
-	beq.s .v4e
-	lea message8b(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5483,D0
-	beq.s .v4e
-	lea message8c(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5482,D0
-	beq.s .v4e
-	lea message8d(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5481,D0
-	beq.s .v4e
-	lea message8e(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5480,D0
-	beq.s .v4e
-	lea message9(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5475,D0
-	beq.s .v4e
-	lea message9a(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5474,D0
-	beq.s .v4e
-	lea message9b(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5473,D0
-	beq.s .v4e
-	lea message9c(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5472,D0
-	beq.s .v4e
-	lea message9d(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5471,D0
-	beq.s .v4e
-	lea message9e(PC),A0
-	cmp.l #MCF_SIU_JTAGID_MCF5470,D0
-	beq.s .v4e
-	lea message10(PC),A0
-.v4e:
-#endif /* MCF5445X */
-#else /* ATARI */
 	movec.l PCR,D0
 	swap D0
 	lea message8(PC),A0      // 68060
@@ -2033,23 +462,10 @@ init_sdram:
 	lea message10(PC),A0
 .full_060:
 .ec_lc_060:
-#endif /* COLDFIRE */
 	bsr display_string
-#ifdef COLDFIRE
-#ifdef MCF5445X
-	move.w MCF_CCM_CIR,D0	
-	and.l #CCM_CIR_PRN_MASK,D0 // revision
-#else /* MCF548X */
-	move.l MCF_SIU_JTAGID,D0
-	and.l #MCF_SIU_JTAGID_REV,D0
-	moveq #28,D1
-	lsr.l D1,D0              // revision
-#endif /* MCF548X */
-#else /* ATARI */
 	clr.w D0
 	swap D0
 	lsr.w #8,D0              // revision
-#endif /* COLDFIRE */
 	divu #10,D0
 	and.w #7,D0
 	beq.s .rev_less_10
@@ -2059,7 +475,6 @@ init_sdram:
 	swap D0
 	or.w #0x30,D0
 	bsr display_char
-#ifndef COLDFIRE
 	movec.l PCR,D0
 	move.l D0,D1
 	lsr.l #8,D1
@@ -2113,13 +528,9 @@ init_sdram:
 	move.l D0,D7 
 	bsr tempo_20ms
 .measure_mhz:
-#endif
 	link A6,#-6
 	bsr measure_cpu_frequency
 	move.l D0,-4(A6)         // CPU frequency in MHz * 10
-#ifdef COLDFIRE
-	move.l #0x5F43465F,D0    // _CF_
-#else /* 68060 */
 #if 0
 	cmp.l #750,D0
 	bcs.s .lower_75mhz
@@ -2132,7 +543,6 @@ init_sdram:
 .lower_75mhz:
 #endif
 	move.l #0x43543630,D0    // CT60
-#endif /* COLDFIRE */
 	bsr get_cookie
 	move.l A0,D0
 	beq.s .no_cookie_ct60
@@ -2156,7 +566,6 @@ init_sdram:
 	unlk A6
 	lea message18(PC),A0     // MHz
 	bsr display_string_single
-#ifndef COLDFIRE
 	link A6,#-48
 	pea -48(A6)              // buffer
 	move.w #48,-(SP)         // size
@@ -2331,12 +740,8 @@ init_sdram:
 	lea message18(PC),A0     // MHz
 	bsr display_string_single
 .no_pclock_display:
-#endif
 	lea crlf(PC),A0
 	bsr display_string_single
-#ifdef COLDFIRE
-	move.l D5,D0             // return value from ct60_configure_sdram
-#else
 	move.l phystop,D0
 	sub.l _memtop,D0
 	cmp.l #RESERVE_MEM,D0
@@ -2400,7 +805,6 @@ init_sdram:
 	bra.s .display_values_sdram
 .halt_no_sdram:
 	bra.s .halt_no_sdram
-#endif
 .ok_sdram:
 	move.l D0,D4
 	bsr crlf_spaces
@@ -2420,7 +824,6 @@ init_sdram:
 	bsr display_string_single
 	lea message6(PC),A0
 	bsr display_string
-#ifndef COLDFIRE
 	cmp.l #0x1357BD13,ramvalid
 	bne .bypass_test
 	cmp.l #0x752019F3,memvalid
@@ -2504,9 +907,7 @@ init_sdram:
 	bsr display_string
 	bra .error_sdram2
 .test_ok:
-#endif /* COLDFIRE */
 .init_mmu:
-#ifndef COLDFIRE
 	moveq #0,D7
 	movec.l PCR,D0
 	btst #16,D0
@@ -2528,7 +929,6 @@ init_sdram:
 	tst.l D0
 	beq.s .end_sdram
 .pmmu_already_in_use:
-#endif
 	bsr crlf_spaces
 	lea message51(PC),A0     // TOS in RAM
 	bsr display_string
@@ -2556,85 +956,9 @@ init_sdram:
 .no_nvm_read_saved:
 	lea crlf(PC),A0
 	bsr display_string_single
-#ifdef COLDFIRE
-#ifdef MCF5445X
-	clr.b MCF_ATA_CR             // control reset
-	move.l _hz_200,D1	
-.delay_reset_ide:
-		move.l _hz_200,D0
-		sub.l D1,D0
-	cmp.l #2,D0                  // 10 mS
-	ble.s .delay_reset_ide
-	/* IDE set */
-	lea piotms+(2*9*2)(PC),A0    // PIO 2
-	move.l #1000/SYSTEM_CLOCK,D1 // period in ns
-	moveq #0,D0
-	move.w (A0)+,D0              // t1
-	add.l D1,D0                  // + period
-	sub.l #1,D0
-	divu D1,D0                   // / period
-	move.b D0,MCF_ATA_TIME_1
-	moveq #0,D0
-	move.w (A0)+,D0              // t2
-	add.l D1,D0                  // + period
-	sub.l #1,D0
-	divu D1,D0                   // / period
-	move.b D0,MCF_ATA_TIME_2W
-	move.b D0,MCF_ATA_TIME_2R
-	addq.l #2,A0                 // t3
-	moveq #0,D0
-	move.w (A0)+,D0              // t4
-	add.l D1,D0                  // + period
-	sub.l #1,D0
-	divu D1,D0                   // / period
-	move.b D0,MCF_ATA_TIME_4
-	addq.l #4,A0                 // t5, t6
-	moveq #0,D0
-	move.w (A0)+,D0              // t9
-	add.l D1,D0                  // + period
-	sub.l #1,D0
-	divu D1,D0                   // / period
-	move.b D0,MCF_ATA_TIME_9
-	moveq #0,D0
-	move.w (A0)+,D0              // tRD
-	add.l D1,D0                  // + period
-	sub.l #1,D0
-	divu D1,D0                   // / period
-	move.b D0,MCF_ATA_TIME_PIORDX
-	moveq #0,D0
-	move.w (A0)+,D0              // tA
-	add.l D1,D0                  // + period
-	sub.l #1,D0
-	divu D1,D0                   // / period
-	move.b D0,MCF_ATA_TIME_AX
-	moveq #0x40,D0               // IORDY enable
-	move.b D0,MCF_ATA_CR
-	move.l _hz_200,D1	
-.delay_end_reset_ide:
-		move.l _hz_200,D0
-		sub.l D1,D0
-	cmp.l #40,D0                 // 200 mS
-	ble.s .delay_end_reset_ide
-	bset #0,MCF_ATA_CR           // IORDY enable
-#endif
-#endif
 	movem.l (SP)+,D1-A6
 	rts
 	
-#ifdef COLDFIRE
-
-#ifdef MCF5445X
-	/*   t1,  t2, t3, t4, t5,t6, t9,tRD, tA */
-piotms:
-	dc.w 70, 165, 60, 30, 50, 5, 20,  0, 35 /* PIO 0 */
-	dc.w 50, 125, 45, 20, 35, 5, 15,  0, 35 /* PIO 1 */
-	dc.w 30, 100, 30, 15, 20, 5, 10,  0, 35 /* PIO 2 */
-	dc.w 30,  80, 30, 10, 20, 5, 10,  0, 35 /* PIO 3 */
-	dc.w 25,  70, 20, 10, 20, 5, 10,  0, 35 /* PIO 4 */
-#endif
-
-#else /* ATARI - CT60 */
-
 display_infos_sdram:
 
 	movem.l D0-D2/A0-A1,-(SP)
@@ -2936,30 +1260,18 @@ display_infos_sdram:
 	movem.l (SP)+,D0-D2/A0-A1
 	rts
 
-#endif
-
 #ifdef DEBUG
 dump:
 	movem.l D0-D2/A0-A1,-(SP)
 .loop_dump1:
 		lea crlf(PC),A0
 		bsr display_string_single
-#ifdef COLDFIRE
-		bsr debug_display_string
-#endif		
 		moveq #15,D2
 .loop_dump2:
 			move.b (A1)+,D0
 			bsr hex_byte
-#ifdef COLDFIRE
-			move.b -1(A1),D0
-			bsr debug_hex_byte
-#endif
 			moveq #0x20,D0
 			bsr display_char
-#ifdef COLDFIRE
-			bsr debug_display_char
-#endif		
 		dbf D2,.loop_dump2
 		lea -16(A1),A1
 		moveq #15,D2
@@ -2973,9 +1285,6 @@ dump:
 			moveq #0x2E,D0
 .dump_ok:
 			bsr display_char
-#ifdef COLDFIRE
-			bsr debug_display_char
-#endif	
 		dbf D2,.loop_dump3
 	dbf D1,.loop_dump1
 	movem.l (SP)+,D0-D2/A0-A1
@@ -3006,11 +1315,7 @@ measure_cpu_frequency:                 // return CPU frequency in MHz * 10
 .not_maxi:
 	dbf D2,.next_mes
 	move.w (SP)+,SR
-#ifdef COLDFIRE
-	divu #125,D0             // MHz * 10
-#else
 	divu #250,D0             // MHz * 10
-#endif
 	swap D0
 	tst.w D0
 	beq.s .end_mes
@@ -3059,8 +1364,6 @@ tab_boot_order:
 	.word message107-tab_boot_order
 #endif
 
-#ifndef COLDFIRE
-
 error1:	.asciz "SDRAM not found"
 	.asciz "SDRAM non trouv‚e"
 error2:	.asciz "SDRAM chip density error"
@@ -3085,7 +1388,6 @@ error11:	.asciz "CTCM not found"
 	.asciz "CTCM non trouv‚e"
 error12:	.asciz "CTCM frequency error"
 	.asciz "CTCM erreur fr‚quence"
-#endif
 error13:	.byte 13,10
 	.ascii "CTPCI not found"
 	.byte 13,10,0
@@ -3100,38 +1402,14 @@ message0:	.byte 0x1B,0x62,0x34,0x41
 	.byte 0x1B,0x62,0x31,0x52
 	.byte 0x1B,0x62,0x35,0x49,0x20
 	.byte 0x1B,0x62,0x3F
-#ifdef COLDFIRE
-#ifdef MCF5445X /* M54455EVB */
-	.ascii "M54455EVB"
-#else
-#ifdef MCF547X /* MCF547X - COLDARI */
-	.ascii "COLDARI"
-#else /* MCF548X - M5484LITE */
-	.ascii "M5484LITE/M5485EVB"
-#endif /* MCF547X */
-#endif /* MCF5445X */
-#else /* ATARI - CT60 */
 	.ascii "FALCON/"
 	.byte 0x1B,0x62,0x31
 	.ascii "CT60"
 	.byte 0x1B,0x62,0x3F
-#endif /* COLDFIRE */
 	.ascii " TOS4.04"
 	.byte 13,10,0
 message0b:
-#ifdef COLDFIRE
-#ifdef MCF5445X /* M54455EVB */
-	.ascii "ATARI M54455EVB TOS4.04"
-#else
-#ifdef MCF547X /* MCF547X - COLDARI */
-	.ascii "COLDARI TOS4.04"
-#else /* MCF548X - M5484LITE */
-	.ascii "ATARI M5484LITE/M5485EVB TOS4.04"
-#endif /* MCF547X */
-#endif /* MCF5445X */
-#else /* ATARI - CT60 */
 	.ascii "ATARI FALCON/CT60 TOS4.04"
-#endif /* COLDFIRE */
 crlf:	.byte 13,10,0
 xlf:	.byte 10,10,10,10,10,0
 separator:	.asciz ", "
@@ -3142,54 +1420,12 @@ message4:	.asciz "256"
 message5:	.asciz "512"
 message6:	.asciz "MB detected"
 	.asciz "Mo d‚tect‚e" 
-#ifdef COLDFIRE
-#ifdef MCF5445X
-message8:	.asciz "MCF54455 Rev."
-	.asciz "MCF54455 R‚v."
-message8a:	.asciz "MCF54454 Rev."
-	.asciz "MCF54454 R‚v."	
-message8b:	.asciz "MCF54453 Rev."
-	.asciz "MCF54453 R‚v."		
-message8c:	.asciz "MCF54452 Rev."
-	.asciz "MCF54452 R‚v."	
-message8d:	.asciz "MCF54451 Rev."
-	.asciz "MCF54451 R‚v."
-message8e:	.asciz "MCF54450 Rev."
-	.asciz "MCF54450 R‚v."
-#else /* MCF548X */
-message8:	.asciz "MCF5485 Rev."
-	.asciz "MCF5485 R‚v."
-message8a:	.asciz "MCF5484 Rev."
-	.asciz "MCF5484 R‚v."	
-message8b:	.asciz "MCF5483 Rev."
-	.asciz "MCF5483 R‚v."		
-message8c:	.asciz "MCF5482 Rev."
-	.asciz "MCF5482 R‚v."	
-message8d:	.asciz "MCF5481 Rev."
-	.asciz "MCF5481 R‚v."
-message8e:	.asciz "MCF5480 Rev."
-	.asciz "MCF5480 R‚v."
-message9:	.asciz "MCF5475 Rev."
-	.asciz "MCF5475 R‚v."
-message9a:	.asciz "MCF5474 Rev."
-	.asciz "MCF5474 R‚v."
-message9b:	.asciz "MCF5473 Rev."
-	.asciz "MCF5473 R‚v."
-message9c:	.asciz "MCF5472 Rev."
-	.asciz "MCF5472 R‚v."
-message9d:	.asciz "MCF5471 Rev."
-	.asciz "MCF5471 R‚v."
-message9e:	.asciz "MCF5470 Rev."
-#endif /* MCF5445X */
-#else /* ATARI */
 message8:	.asciz "68060 Rev."
 	.asciz "68060 R‚v."
 message9:	.asciz "68EC060 / 68LC060 Rev."
 	.asciz "68EC060 / 68LC060 R‚v."
-#endif /* COLDFIRE */
 message10:	.asciz "unknown CPU "
 	.asciz "CPU inconnu"
-#ifndef COLDFIRE
 message11:	.asciz " Mask D00W/D11W" // revision 0
 	.asciz " Masque D00W/D11W"
 message12:	.asciz " Mask F43G/G65V" // revision 1 & 5
@@ -3198,7 +1434,6 @@ message13:	.asciz " Mask F84W"      // revision 2
 	.asciz " Masque F84W"
 message14:	.asciz " Mask E41J"      // revision 6
 	.asciz " Masque E41J" 
-#endif
 message15:	.byte 27 
 	.asciz "p Boot v"
 message15a:
@@ -3217,7 +1452,6 @@ message17:   .ascii "MB/S"
 	.ascii "Mo/S"
 	.byte 13,10,0
 message18:	.asciz "MHz"
-#ifndef COLDFIRE
 message19:	.byte 13,10,27 
 	.ascii "p SDRAM EEPROM DATA "
 	.byte 27
@@ -3306,7 +1540,6 @@ message37:	.byte 13,10
 message38:	.asciz "CT60 hardware"
 message39:	.asciz " ABEv"
 message40:	.asciz " SDRv"
-#endif
 #ifdef USE_ATARI_IO
 message41:	.byte 13,10
 	.asciz "SCSI "
@@ -3336,7 +1569,6 @@ message51b:	.asciz "NVRAM unused"
 	.asciz "NVRAM non utilis‚e"
 message52:	.byte 13,10
 	.asciz "Reset"
-#ifndef COLDFIRE
 message53:	.byte 13,10
 	.asciz "Byte 18, CAS Latency : " 
 	.byte 13,10
@@ -3381,7 +1613,6 @@ message72:	.asciz " unbuffered"
 	.asciz " sans buffers" 
 message73:	.asciz " PC100"
 message74:	.asciz " PC133"
-#endif
 message75:	.byte 13,10
 	.asciz "Keyboard OK  "
 	.byte 13,10 
@@ -3408,9 +1639,7 @@ message79:	.asciz " seconds  "
 	.asciz " secondes  "
 message80:	.asciz " TOS   "
 message81:	.asciz " MagiC "
-#ifndef COLDFIRE
 message82:	.asciz " Linux "
-#endif
 message83:	.asciz " removable"
 	.asciz " amovible"
 message84:	.asciz "no logical unit"
@@ -3469,7 +1698,6 @@ message96:	.byte 13,10,27
 	.byte 27
 	.ascii "q"
 	.byte 13,10,0
-#ifndef COLDFIRE
 message97:	.byte 13,10	
 	.asciz "Write byte EEPROM (dec) ? "
 	.byte 13,10	
@@ -3479,7 +1707,6 @@ message98:	.byte 13,10
 	.byte 13,10	
 	.asciz "Valeur (dec) ? "
 message99:	.asciz " CTCM"
-#endif
 #ifdef USE_ATARI_IO
 message100:	.asciz " New boot SCSI0-7 -> IDE0-1 "
 	.asciz " Nouveau boot SCSI0-7 -> IDE0-1 "
@@ -3560,7 +1787,6 @@ boot_ide_2:	.byte 17,16,15,14,13,12,11,10,9,8,255
 
 tab_os:	.byte 0x80,8,0x10
 
-#ifndef COLDFIRE
 list_manufacturers:
 	.byte 0x1C
 	.asciz "MITSUBISHI"
@@ -3588,7 +1814,6 @@ list_manufacturers:
 	.asciz "HYUNDAI" 
 	.byte 0xE0     // module source ?
 	.asciz "HYUNDAI"
-#endif
 null:	.byte 0,0
 
 list_device_type:
@@ -3623,17 +1848,6 @@ boot_drive:
 
 	movem.l D0-A5,-(SP)
 	link A6,#-18
-#ifdef COLDFIRE
-	bset #5,0xFFFFFA01       // for IDE emulation (SRAM)
-//	clr.l save_ide_registers
-//	clr.l save_ide_registers+4
-//	lea coldfire_vector_base,A1
-//	move.l 2*4(A1),D0
-//	move.l D0,old_access_error
-//	lea access_error_ide(PC),A0
-//	move.l A0,2*4(A1)        // to fix with MMU update_tlb access fault !!!
-	bsr install_scsidrv
-#endif
 	move.w #3,-(SP)          // TT ram if possible
 	move.l #pinfo_size,-(SP)
 	move.w #0x44,-(SP)       // Mxalloc
@@ -4901,34 +3115,6 @@ search_dos_partition:                 // D0: drive, D0.H: flag swap bytes
 	
 check_root:
 
-#ifdef COLDFIRE
-	lea -16(SP),SP
-	movem.l D0-D2/A0,(SP)
-	move.l #255,D0
-	moveq #0,D1
-.loop_checksum:
-		moveq #0,D2
-		move.w (A0)+,D2
-		add.l D2,D1
-	subq.l #1,D0
-	bpl.s .loop_checksum
-	and.l #0xFFFF,D1
-#ifdef DEBUG
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.w D1,D0
-	bsr debug_hex_word
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-	cmp.l #0x1234,D1
-	movem.l (SP),D0-D2/A0
-	lea 16(SP),SP
-#else
 	movem.l D0-D1/A0,-(SP)
 	move.w #255,D0
 	moveq #0,D1
@@ -4937,7 +3123,6 @@ check_root:
 	dbf D0,.loop_checksum
 	cmp.w #0x1234,D1
 	movem.l (SP)+,D0-D1/A0
-#endif /* COLDFIRE */
 	rts
 	
 exec_sys:  		// D0 drive, D0.H: flag swap bytes, D1.L: start of partition
@@ -5136,1913 +3321,8 @@ exec_sys:  		// D0 drive, D0.H: flag swap bytes, D1.L: start of partition
 #endif /* USE_ATARI_IO */
 	rts
 	
-#ifdef COLDFIRE
-
-	// SCSIDRV
-	
-install_scsidrv:
-
-#ifdef COLDFIRE
-	lea -24(SP),SP
-	movem.l D0-D2/A0-A2,(SP)
-#else
-	movem.l D0-D2/A0-A2,-(SP)
-#endif
-	move.w #3,-(SP)          // TT ram if possible
-	move.l #74+18,-(SP)      // size
-	move.w #0x44,-(SP)       // Mxalloc
-	trap #1 
-	addq.l #8,SP
-	tst.l D0
-	beq .error_install
-	move.l D0,A2
-	move.l D0,A1
-	move.w #0x101,(A1)+      // version
-	lea In(PC),A0
-	move.l A0,(A1)+
-	lea Out(PC),A0
-	move.l A0,(A1)+
-	lea InquireSCSI(PC),A0
-	move.l A0,(A1)+
-	lea InquireBus(PC),A0
-	move.l A0,(A1)+
-	lea CheckDev(PC),A0
-	move.l A0,(A1)+
-	lea RescanBus(PC),A0
-	move.l A0,(A1)+
-	lea Open(PC),A0
-	move.l A0,(A1)+
-	lea Close(PC),A0
-	move.l A0,(A1)+
-	lea Error(PC),A0
-	move.l A0,(A1)+
-	lea Install(PC),A0
-	move.l A0,(A1)+
-	lea Deinstall(PC),A0
-	move.l A0,(A1)+
-	lea GetCmd(PC),A0
-	move.l A0,(A1)+
-	lea SendData(PC),A0
-	move.l A0,(A1)+
-	lea GetData(PC),A0
-	move.l A0,(A1)+
-	lea SendStatus(PC),A0
-	move.l A0,(A1)+
-	lea SendMsg(PC),A0
-	move.l A0,(A1)+
-	lea GetMsg(PC),A0
-	move.l A0,(A1)+
-	addq.l #4,A1
-	move.l A1,-4(A1)         // ReqData
-	move.l cookie,D0
-	beq.s .error_install
-	move.l D0,A0
-.find_cookiejar:
-		tst.l (A0)
-		beq.s .cookie_slotfree
-		addq.w #8,A0
-	bra.s .find_cookiejar
-.cookie_slotfree:
-	move.l 4(A0),12(A0)      // copy size
-	move.l #0x53435349,(A0)+ // SCSI
-	move.l A2,(A0)+
-	clr.l (A0)
-.error_install:
-#ifdef COLDFIRE
-	movem.l (SP),D0-D2/A0-A2
-	lea 24(SP),SP
-#else
-	movem.l (SP)+,D0-D2/A0-A2
-#endif
-	rts
-	
-In:
-
-#ifdef COLDFIRE
-	lea -40(SP),SP
-	movem.l D1-D5/A0-A4,(SP)
-#ifdef DEBUG
-	lea debug130(PC),A0
-	bsr debug_display_string
-	move.l 4+40(SP),A2       // Parms
-	moveq #0,D2
-	move.w 8(A2),D2          // CmdLen
-	move.l 4(A2),A2          // Cmd
-.in0:
-		move.b (A2)+,D0
-		bsr debug_hex_byte
-		moveq #0x20,D0
-		bsr debug_display_char
-	subq.l #1,D2
-	bgt.s .in0
-#endif
-#else
-	movem.l D1-D5/A0-A4,-(SP)
-#endif
-	move.w SR,D0             // supervisor only
-	moveq #TIMEOUTERROR,D5   // error code
-	move.w #3,-(SP)          // TT ram if possible
-	move.l #1024,-(SP)       // size
-	move.w #0x44,-(SP)       // Mxalloc
-	trap #1 
-	addq.l #8,SP
-	tst.l D0
-	beq .in1                 // error
-	move.l D0,A0             // buffer IDE
-	move.l 4+40(SP),A2       // Parms
-	move.l (A2),D0           // Handle
-	ble .in7                 // error
-	move.l 4(A2),A3          // Cmd
-	moveq #0,D0
-	move.w 8(A2),D0          // CmdLen
-	cmp.l #6,D0
-	bcs .in7                 // error
-	moveq #0,D4
-	move.b 1(A3),D4
-	lsr.l #5,D4              // logical unit
-	bne .in7                 // error
-//	cmp.l #2,D4
-//	bcc .in7                 // error
-	or.l #0x10,D4            // drive
-	move.l 10(A2),A4         // Buffer
-	move.l 14(A2),D1         // TransferLen
-	move.l 18(A2),A1         // SenseBuffer (18 bytes)
-	move.l 22(A2),D2         // Timeout
-	move.w 26(A2),D3         // Flags
-	move.l A0,-(SP)
-	link A6,#-8
-	moveq #0,D0
-	move.b (A3),D0           // command : test unit ready
-	bne.s .in2
-	lea -8(A6),A1            // cmd buffer
-	move.b #0xE5,(A1)        // check power mode
-	moveq #7,D0
-	and.w D4,D0              // drive
-	asl.w #4,D0
-	or.b #0xA0,D0
-	move.b D0,1(A1)          // drive (C/D/H)
-	clr.w 2(A1)              // cyl high & low
-	clr.w 4(A1)              // sec num & count
-	clr.b 6(A1)              // features
-	moveq #0,D0              // bytes
-	bsr ide_cmd
-	bmi .in6
-//	moveq #BSYERROR,D5
-//	tst.b ATA_SECTOR_COUNT
-//	beq .in6                 // not ready
-	bra .in9                 // OK
-.in2:
-	cmp.l #0x03,D0           // request sense
-	bne.s .in12
-#if 1
-	move.b #0x72,(A1)        // response code
-	clr.b 1(A1)              // segment number
-	move.b #2,2(A1)          // sense key: no sense
-	clr.l 3(A1)              // information
-	move.b #10,7(A1)         // additional sense length (n-7)
-	move.w #0x0206,8(A1)     // sense specific sense descriptor
-	clr.w 10(A1)
-	move.b #0x80,12(A1)      // sense-key specific
-	clr.l 14(A1)
-#else
-	move.b #0xF0,(A1)        // error code	
-	clr.b 1(A1)              // segment number
-	move.b #2,2(A1)          // sense key 2:not ready 6: unit attention
-	clr.l 3(A1)              // information
-	move.b #10,7(A1)         // additional sense length (n-7)
-	clr.l 8(A1)              // command-specific information
-	move.w 0x2800,12(A1)     // additional sense code
-	// 0x2800:medium changed, 0x2900:reset bus occured
-	// 0x0401: in progress, 0x3A00: no media, 0x3A01: no media, try closed 
-	clr.b 14(A1)             // field replaceable unit code
-	clr.b 15(A1)             // sense-key specific
-	clr.w 16(A1)
-#endif
-	bra .in9                 // OK
-.in12:	
-	cmp.l #0x08,D0           // read
-	bne.s .in4
-	moveq #0,D2
-	move.b 1(A3),D2
-	and.l #0x1F,D2
-	swap D2
-	move.w 2(A3),D2          // LBA 21 bits
-	bra.s .in8	
-.in4:
-	cmp.l #0x28,D0           // read
-	bne .in5
-	move.l 2(A3),D2          // LBA 32 bits
-.in8:
-	add.l #0x1FF,D1          // TransferLen
-	lsr.l #8,D1
-	lsr.l #1,D1              // / 512
-	beq .in6
-	cmp.l #0x100,D1
-	bcc .in6                 // error
-	lea -8(A6),A1            // cmd buffer
-	move.l A4,A0             // buffer IDE
-	move.b #0x20,(A1)        // read sector(s)
-	moveq #7,D0
-	and.w D4,D0              // physical drive
-	asl.w #4,D0
-	or.b #0xE0,D0            // LBA
-	move.b D0,1(A1)          // drive (C/D/H)
-	move.l D2,D0             // LBA
-	move.b D0,4(A1)          // sec num, LBA low
-	lsr.l #8,D0
-	move.w D0,2(A1)          // cyl high & low, LBA high & mid
-	move.b D1,5(A1)          // sec count 0 <=> 256
-	clr.b 6(A1)              // features
-	moveq #0,D0
-	move.w D1,D0             // count
-	add.l D0,D0
-	asl.l #8,D0              // * 512 = bytes
-             bsr ide_cmd
-             bmi .in6                 // time-out
-             beq .in9                 // OK
-.in3:
-             moveq #PARITIYERROR,D5
-             bra .in6
-.in5:
-	cmp.l #0x12,D0           // inquiry
-	bne.s .in11
-	cmp.l #36,D1             // TransferLen
-	bcs .in6
-	lea -8(A6),A1            // cmd buffer
-	move.b #0xEC,(A1)        // identify device
-	moveq #7,D0
-	and.w D4,D0              // drive
-	asl.w #4,D0
-	or.b #0xA0,D0
-	move.b D0,1(A1)          // drive (C/D/H)
-	clr.w 2(A1)              // cyl high & low
-	clr.w 4(A1)              // sec num & count
-	clr.b 6(A1)              // features
-	move.l #512,D0           // bytes
-	bsr ide_cmd
-	bmi .in6                 // time-out
-	bne .in3                 // error
-	clr.w (A4)               // peripheral: direct access device
-//	move.w (A0),(A4)         // device type
-	move.b #3,2(A4)          // ANSI
-	clr.b 3(A4)
-	move.b #32,4(A4)         // length - 4
-	clr.b 5(A4)
-	clr.w 6(A4)
-	move.l 46(A0),32(A4)     // revision
-	moveq #15,D0
-	lea 54(A0),A0
-	lea 8(A4),A1
-	moveq #23,D0
-.in10:
-		move.b (A0)+,(A1)+ // model
-	subq.l #1,D0
-	bpl.s .in10
-	bra .in9                 // OK
-.in11:
-	cmp.l #0x1A,D0           // mode sense
-	bne .in13
-	cmp.l #20,D1             // TransferLen
-	bcs .in6
-	moveq #0x3F,D0
-	and.b 2(A3),D0
-	cmp.l #0x08,D0           // caching mode page
-	bne .in6
-	lea -8(A6),A1            // cmd buffer
-	move.b #0xEC,(A1)        // identify device
-	moveq #7,D0
-	and.w D4,D0              // drive
-	asl.w #4,D0
-	or.b #0xA0,D0
-	move.b D0,1(A1)          // drive (C/D/H)
-	clr.w 2(A1)              // cyl high & low
-	clr.w 4(A1)              // sec num & count
-	clr.b 6(A1)              // features
-	move.l #512,D0           // bytes
-	bsr ide_cmd
-	bmi .in6                 // time-out
-	bne .in3                 // error
-	move.b #8,(A4)           // page code
-	move.b #12,1(A4)         // page length
-	btst #5,171(A0)          // write cache enable
-	sne.b D0
-	and.l #4,D0              // WCE
-	move.b D0,2(A4)
-	clr.b 3(A4)
-	clr.l 6(A4)
-	clr.w 10(A4)
-	btst #6,171(A0)          // look ahead enable
-	seq.b D0
-	and.l #0x20,D0           // DRA
-	move.b D0,12(A4)
-	clr.b 13(A4)
-	clr.w 14(A4)
-	clr.l 16(A4)	
-	bra .in9
-.in13:
-	cmp.l #0x25,D0           // read capacity
-	bne.s .in6
-	cmp.l #4,D1              // TransferLen
-	bcs.s .in6
-	lea -8(A6),A1            // cmd buffer
-	move.b #0xEC,(A1)        // identify device
-	moveq #7,D0
-	and.w D4,D0              // drive
-	asl.w #4,D0
-	or.b #0xA0,D0
-	move.b D0,1(A1)          // drive (C/D/H)
-	clr.w 2(A1)              // cyl high & low
-	clr.w 4(A1)              // sec num & count
-	clr.b 6(A1)              // features
-	move.l #512,D0           // bytes
-	bsr ide_cmd
-	bmi .in6                 // time-out
-	bne .in3                 // error
-	move.l 120(A0),D0        // total sectors
-	swap D0
-	move.l D0,(A4)           // logical block address
-	move.l #512,4(A4)        // block length
-.in9:
-	moveq #NOSCSIERROR,D5
-.in6:
-	unlk A6
-	move.l (SP)+,A0
-.in7:
-	move.l A0,-(SP)
-	move.w #0x49,-(SP)       // Mfree
-	trap #1
-	addq.l #6,SP
-.in1:
-	move.l D5,D0             // error code
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug145(PC),A0
-	bsr debug_display_string
-	move.l D5,D0
-	bsr debug_hex_word
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.l D5,D0
-#endif
-	movem.l (SP),D1-D5/A0-A4
-	lea 40(SP),SP
-#else
-	movem.l (SP)+,D1-D5/A0-A4
-#endif
-	rts
-
-Out:
-
-#ifdef COLDFIRE
-	lea -40(SP),SP
-	movem.l D1-D5/A0-A4,(SP)
-#ifdef DEBUG
-	lea debug131(PC),A0
-	bsr debug_display_string
-	move.l 4+40(SP),A2       // Parms
-	moveq #0,D2
-	move.w 8(A2),D2          // CmdLen
-	move.l 4(A2),A2          // Cmd
-.out0:
-		move.b (A2)+,D0
-		bsr debug_hex_byte
-		moveq #0x20,D0
-		bsr debug_display_char
-	subq.l #1,D2
-	bgt.s .out0
-#endif
-#else
-	movem.l D1-D5/A0-A4,-(SP)
-#endif
-	move.w SR,D0             // supervisor only
-	moveq #TIMEOUTERROR,D5   // error code
-	move.l 4+40(SP),A2       // Parms
-	move.l (A2),D0           // Handle
-	ble .out1                // error
-	move.l 4(A2),A3          // Cmd
-	moveq #0,D0
-	move.w 8(A2),D0          // CmdLen
-	cmp.l #6,D0
-	bcs .out1                // error
-	moveq #0,D4
-	move.b 1(A3),D4
-	lsr.l #5,D4              // logical unit
-	bne .in7                 // error
-//	cmp.l #2,D4
-//	bcc .in7                 // error
-	or.l #0x10,D4            // drive
-	move.l 10(A2),A4         // Buffer
-	move.l 14(A2),D1         // TransferLen
-	move.l 18(A2),A1         // SenseBuffer (18 bytes)
-	move.l 22(A2),D2         // Timeout
-	move.w 26(A2),D3         // Flags
-	link A6,#-8
-	moveq #0,D0
-	move.b (A3),D0           // command
-	cmp.l #0xA,D0            // write
-	bne.s .out4
-	moveq #0,D2
-	move.b 1(A3),D2
-	and.l #0x1F,D2
-	swap D2
-	move.w 2(A3),D2          // LBA 21 bits
-	bra.s .out2
-.out4:	
-	cmp.l #0x2A,D0           // read
-	bne .out6
-	move.l 2(A3),D2          // LBA 32 bits
-.out2:
-	add.l #0x1FF,D1          // TransferLen
-	lsr.l #8,D1
-	lsr.l #1,D1              // / 512
-	beq .out5
-	cmp.l #0x100,D1
-	bcc .out5                // error
-	lea -8(A6),A1            // cmd buffer
-	move.l A4,A0             // buffer IDE
-	move.b #0x30,(A1)        // write sector(s)
-	moveq #7,D0
-	and.w D4,D0              // physical drive
-	asl.w #4,D0
-	or.b #0xE0,D0            // LBA
-	move.b D0,1(A1)          // drive (C/D/H)
-	move.l D2,D0             // LBA
-	move.b D0,4(A1)          // sec num, LBA low
-	lsr.l #8,D0
-	move.w D0,2(A1)          // cyl high & low, LBA high & mid
-	move.b D1,5(A1)          // sec count 0 <=> 256
-	clr.b 6(A1)              // features
-	moveq #0,D0
-	move.w D1,D0             // count
-	add.l D0,D0
-	asl.l #8,D0              // * 512 = bytes
-             bsr ide_cmd
-             bmi .out5                // time-out
-             beq .out3                // OK
-             moveq #PARITIYERROR,D5
-             bra .out5
-.out6:
-	cmp.l #0x15,D0           // mode select
-	bne .out5
-	cmp.l #20,D1             // TransferLen
-	bcs .out5
-	moveq #0x3F,D0
-	and.b 2(A3),D0
-	cmp.l #8,D0              // caching mode page
-	bne.s .out5
-	moveq #2,D2              // enable write cache
-	btst #2,2(A4)            // WCE
-	bne.s .out7
-	move.w #0x82,D2          // disable write cache 
-.out7:
-	moveq #0x55,D3           // disable read look ahead 
-	btst #5,12(A1)           // DRA
-	bne.s .out8
-	move.w #0xAA,D3          // enable read look ahead
-.out8:
-	lea -8(A6),A1            // cmd buffer
-	move.b #0xEF,(A1)        // set features
-	moveq #7,D0
-	and.w D4,D0              // drive
-	asl.w #4,D0
-	or.b #0xA0,D0
-	move.b D0,1(A1)          // drive (C/D/H)
-	clr.w 2(A1)              // cyl high & low
-	clr.w 4(A1)              // sec num & count
-	move.b D2,6(A1)          // features
-	moveq #0,D0              // bytes
-	bsr ide_cmd
-	bmi .out5                // time-out
-	lea -8(A6),A1            // cmd buffer
-	move.b #0xEF,(A1)        // set features
-	moveq #7,D0
-	and.w D4,D0              // drive
-	asl.w #4,D0
-	or.b #0xA0,D0
-	move.b D0,1(A1)          // drive (C/D/H)
-	clr.w 2(A1)              // cyl high & low
-	clr.w 4(A1)              // sec num & count
-	move.b D3,6(A1)          // features
-	moveq #0,D0              // bytes
-	bsr ide_cmd
-	bmi .out5                // time-out
-.out3:
-	moveq #NOSCSIERROR,D5
-.out5:
-	unlk A6
-.out1:
-	move.l D5,D0             // error code
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug145(PC),A0
-	bsr debug_display_string
-	move.l D5,D0
-	bsr debug_hex_word
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.l D5,D0
-#endif
-	movem.l (SP),D1-D5/A0-A4
-	lea 40(SP),SP
-#else
-	movem.l (SP)+,D1-D5/A0-A4
-#endif
-	rts
-
-InquireSCSI:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug144(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	move.l A0,-(SP)
-	tst.w 4+4(SP)            // what 
-	bne.s .is1               // cInqNext
-	move.l 6+4(SP),A0        // Info
-	clr.l (A0)+              // Private.BusIds
-	clr.l (A0)+              // Private.resrvd
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	move.l #0x49444500,(A0)+ // BusName, IDE
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	move.w #3,(A0)+          // BusNo, IDE not compatible
-	move.w Features(PC),(A0)+	
-	move.l #XFRB_SIZE,(A0)+  // MaxLen
-	moveq #0,D0
-	move.l (SP)+,A0
-	rts
-.is1:
-	moveq #-1,D0
-	move.l (SP)+,A0
-	rts
-	
-InquireBus:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug143(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	move.l A0,-(SP)
-	tst.w 4+4(SP)            // what 
-	bne.s .ib1               // cInqNext
-	moveq #0,D0
-	move.w 6+4(SP),D0        // BusNo
-	cmp.l #3,D0              // IDE not compatible
-	bne.s .ib1
-	move.l 8+4(SP),A0        // Dev
-	clr.l (A0)+              // Private
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+              // SCSIId		
-	clr.l (A0)+
-	moveq #0,D0
-	move.l (SP)+,A0
-	rts
-.ib1:
-	moveq #-1,D0
-	move.l (SP)+,A0
-	rts
-	
-CheckDev:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug142(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	move.l A0,-(SP)
-	moveq #0,D0
-	move.w 4+4(SP),D0        // BusNo
-	cmp.l #3,D0              // IDE not compatible
-	bne.s .cd1               // error
-	move.l 6+4(SP),A0        // SCSIId
-	tst.b 7(A0)              // ID
-	bne.s .cd1               // error
-	move.l 10+4(SP),A0       // Name
-	move.l #0x49444500,(A0)+ // BusName, IDE
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	clr.l (A0)+
-	move.l 14+4(SP),A0       // Features
-	move.w Features(PC),(A0)+	
-	moveq #0,D0
-	move.l (SP)+,A0
-	rts
-.cd1:
-	moveq #-15,D0            // unknown device
-	move.l (SP)+,A0
-	rts
-
-RescanBus:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug141(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	moveq #0,D0
-	move.w 4(SP),D0          // BusNo
-	cmp.l #3,D0              // IDE not compatible
-	bne.s .rb1               // error
-	moveq #0,D0
-	rts
-.rb1:
-	moveq #-15,D0            // unknown device
-	rts
-
-Open:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug138(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	move.l A0,-(SP)
-	moveq #0,D0
-	move.w 4+4(SP),D0        // BusNo
-	cmp.l #3,D0              // IDE not compatible
-	bne.s .op1               // error
-	move.l 6+4(SP),A0        // SCSIId
-	tst.b 7(A0)              // ID
-	bne.s .op1               // error
-	move.l 10+4(SP),A0       // MaxLen
-	move.l #XFRB_SIZE,(A0)
-	lea Features(PC),A0
-	move.l A0,D0             // Handle
-	move.l (SP)+,A0
-	rts
-.op2:
-	moveq #-35,D0            // no more handles
-	move.l (SP)+,A0
-	rts
-.op1:
-	moveq #-15,D0            // unknown device
-	move.l (SP)+,A0
-	rts
-
-Close:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug139(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	moveq #NOSCSIERROR,D0
-	rts
-
-Error:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug140(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	move.l 4(SP),D0          // handle
-	move.w 8(SP),D0          // rwflag
-	move.w 10(SP),D0         // ErrNo
-	moveq #NOSCSIERROR,D0
-	rts
-	
-Features:
-	dc.w cAllCmds
-
-Install:
-Deinstall:
-GetCmd:
-SendData:
-GetData:
-SendStatus:
-SendMsg:
-GetMsg:
-
-	moveq #-1,D0             // error
-	rts
-
-	// XHDI
-	
-	dc.l 0x27011992
-	
-xhdi:
-	
-	link A6,#0
-#ifdef COLDFIRE
-	lea -52(SP),SP
-	movem.l D1-A5,(SP)
-#else
-	movem.l D1-A5,-(SP)
-#endif
-	moveq #0,D1
-	move.w 8(A6),D1
-	moveq #-32,D0            // invalid function
-	cmp.l #18,d1
-	bcc.s .bad_xhdi
-	move.w SR,D0             // supervisor only
-	moveq #-1,d0             // error
-	move.w tab_xhdi(PC,D1.W*2),D1
-	jsr tab_xhdi(PC,D1.W)
-.bad_xhdi:
-#ifdef COLDFIRE
-	movem.l (SP)+,D1-A5
-	lea 52(SP),SP
-#else
-	movem.l (SP)+,D1-A5
-#endif
-	unlk A6
-	rts
-tab_xhdi:
-	dc.w XHGetVersion-tab_xhdi    // 0
-	dc.w XHInqTarget-tab_xhdi     // 1
-	dc.w XHReserve-tab_xhdi       // 2
-	dc.w XHLock-tab_xhdi          // 3
-	dc.w XHStop-tab_xhdi          // 4
-	dc.w XHEject-tab_xhdi         // 5
-	dc.w XHDrvMap-tab_xhdi        // 6
-	dc.w XHInqDev-tab_xhdi        // 7
-	dc.w XHInqDriver-tab_xhdi     // 8
-	dc.w XHNewCookie-tab_xhdi     // 9
-	dc.w XHReadWrite-tab_xhdi     // 10
-	dc.w XHInqTarget2-tab_xhdi    // 11
-	dc.w XHInqDev2-tab_xhdi       // 12
-	dc.w XHDriverSpecial-tab_xhdi // 13
-	dc.w XHGetCapacity-tab_xhdi   // 14
-	dc.w XHMediumChanged-tab_xhdi // 15
-	dc.w XHMiNTInfo-tab_xhdi      // 16
-	dc.w XHDOSLimits-tab_xhdi     // 17
-	
-XHGetVersion:
-
-	move.l #0x120,D0         //  protocol version
-	rts
-	
-XHInqTarget:
-
-	moveq #32,D3             // stringlen
-	bra.s .xi1
-	
-XHInqTarget2:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug133(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	move.l 26(A6),D3         // stringlen
-.xi1:
-	tst.w 12(A6)             // minor
-	bne.s .xi2
-	moveq #0,D0
-	move.w 10(A6),D0         // major
-	cmp.l #PUN_IDE,D0
-	bne.s .xi3
-.xi2:
-	moveq #-15,D0            // unknown device
-	rts
-.xi3:
-	move.w D0,D4
-	lea 14(A6),A0            // blocksize
-	move.l #512,(A0)
-	lea 18(A6),A0            // device_flags
-	clr.l (A0)
-	move.l 22(A6),D0         // product_name, 32 characters
-	beq.s .xi3
-	move.l D0,A2
-	clr.b (A2)
-	move.l _dskbufp,A0       // IDE buffer
-	clr.w (A0)
-	lea -8(A6),A1            // cmd buffer
-	move.b #0xEC,(A1)        // identify device
-	moveq #7,D0
-	and.w D4,D0              // drive
-	asl.w #4,D0
-	or.b #0xA0,D0
-	move.b D0,1(A1)          // drive (C/D/H)
-	clr.w 2(A1)              // cyl high & low
-	clr.w 4(A1)              // sec num & count
-	clr.b 6(A1)              // features
-	move.l #512,D0           // bytes
-	bsr ide_cmd
-	bne.s .xi4
-	move.l _dskbufp,A0
-	lea 54(A0),A0
-	lea 24(A0),A1
-	moveq #23,D1             // jump end spaces
-.xi5:
-		cmp.b #0x20,-(A1)
-		bne.s .xi6
-	subq.l #1,D1
-	bpl.s .xi5
-.xi6:
-	addq.w #1,A1
-	clr.b (A1)
-	moveq #23,D1             // model
-.xi7:
-		move.b (A0)+,D0
-		beq.s .xi8
-		move.b D0,(A2)+
-		subq.l #1,D3
-		ble.s .xi8
-	subq.l #1,D1
-	bpl.s .xi7
-.xi8:
-	clr.b (A2)
-.xi4:
-	moveq #0,D0
-	rts
-
-XHReserve:
-XHLock:
-XHStop:
-XHEject:
-
-	moveq #0,D0
-	rts
-	
-XHDrvMap:
-
-	move.l _drvbits,D0
-	rts
-
-
-XHInqDev:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug134(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	move.l pun_ptr,A0
- 	moveq #0,D0
-	move.w 10(A6),D0         // bios_device
-	cmp.l #2,D0              // C
-	bcs.s .xd2
-	cmp.l #16,D0
-	bcc.s .xd2
-	moveq #0,D1
-	move.b pinfo_pun(A0,D0.w),D1
-	bpl.s .xd1
-.xd2:	
-	moveq #-46,D0            // invalid drive number
-	rts
-.xd1:	
-	move.l 12(A6),A1         // major
-	move.w D1,(A1)
-	move.l 16(A6),A1         // minor
-	clr.w (A1)
-	move.l pinfo_pstart(A0,D0.w*4),D1
-	move.l 20(A6),A1         // start_sector
-	move.l D1,(A1)
-	lea pinfo_bpb(A0),A0
-	asl.l #5,D0              // * 32
-	add.l A0,D0
-	move.l 20(A6),A1         // bpb
-	move.l D0,(A1)
-	moveq #0,D0
-	rts
-
-XHInqDriver:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug135(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	move.l pun_ptr,A0
- 	moveq #0,D0
-	move.w 10(A6),D0         // bios_device
-	cmp.l #2,D0              // C
-	bcs.s .xd2
-	cmp.l #16,D0
-	bcc.s .xd2
-	moveq #0,D1
-	move.b pinfo_pun(A0,D0.w),D1
-	bpl.s .xd1
-.xdr2:	
-	moveq #-46,D0            // invalid drive number
-	rts
-.xdr1:
-	move.l 12(A6),D0         // name, 17 characters
-	beq.s .xdr3
-	move.l D0,A1
-	lea message0b(PC),A0
-	moveq #17,D1
-.xdr6:
-		move.b (A0)+,D0
-		beq.s .xdr7
-		move.b D0,(A1)+
-	subq.l #1,D1
-	bpl.s .xdr6
-.xdr7:
-	clr.b (A1)
-.xdr3:
-	move.l 16(A6),D0         // version, 7 characters
-	beq.s .xdr4
-	move.l D0,A1
-	move.b #0x34,(A1)+       // ??? TOS 4.04
-	move.b #0x2E,(A1)+
-	move.b #0x30,(A1)+
-	move.b #0x34,(A1)+
-	clr.b (A1)
-.xdr4:
-	move.l 20(A6),D0         // company, 17 characters
-	beq.s .xdr5
-	move.l D0,A1
-	clr.b (A1)
-.xdr5:
-	move.l 24(A6),A1         // ahdi_version
-	move.w pinfo_vernum(A0),(A1)
-	move.l 28(A6),A1         // maxIPL
-	moveq #5,D0
-	move.w D0,(A1)	
-	moveq #0,D0
-	rts
-
-XHNewCookie:
-
-	moveq #-32,D0            //  invalid function number 
-	rts
-
-XHReadWrite:
-
-	tst.w 12(A6)             // minor
-	bne.s .xr4
-	moveq #0,D4
-	move.w 10(A6),D4         // major
-	cmp.l #PUN_IDE,D4
-	bne.s .xr1
-.xr4:
-	moveq #-15,D0            // unknown device
-	rts	
-.xr1:
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug132(PC),A0
-	bsr debug_display_string
-	move.w 14(A6),D0         // rwflag
-	bsr debug_hex_word
-	moveq #0x20,D0
-	bsr debug_display_char
-	moveq #0x30,D0
-	bsr debug_display_char
-	moveq #0x78,D0
-	bsr debug_display_char
-	move.l 24(A6),D0         // buffer
-	bsr debug_hex_long
-	moveq #0x20,D0
-	bsr debug_display_char
-	moveq #0x30,D0
-	bsr debug_display_char
-	moveq #0x78,D0
-	bsr debug_display_char
-	move.w 20(A6),D0         // num sectors
-	bsr debug_hex_word
-	moveq #0x20,D0
-	bsr debug_display_char
-	moveq #0x30,D0
-	bsr debug_display_char
-	moveq #0x78,D0
-	bsr debug_display_char
-	move.l 16(A6),D0         // logical sector
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char	
-#endif
-#endif
-	move.l 24(A6),A0         // buffer
-	moveq #0,D3
-	move.w 20(A6),D3         // count
-	beq .xr2                 // no sectors
-             move.l 16(A6),D2         // start sector
-	btst #0,15(A6)           // rwflag
-	beq.s .xr7               // read
-	tst.l D2                 // sector
-	beq.s .xr2               // root sector
-.xr5:
-		move.l D3,D1     // count
-		cmp.l #0x100,D1
-		bcs.s .xr6
-		move.l #0xFF,D1  // count
-.xr6:
-		move.l D4,D0
-		bsr write_sectors
-		bmi.s .xr3
-		move.l D1,D0
-		add.l D0,D0
-		asl.l #8,D0 // * 512
-		add.l D0,A0 // buffer
-		add.l D1,D2 // start sector
-	sub.l D1,D3
-	bgt.s .xr5
-	moveq #0,D0              // OK
-	rts
-.xr2:
-	moveq #-1,D0             // error
-	rts
-.xr7:
-		move.l D3,D1     // count
-		cmp.l #0x100,D1
-		bcs.s .xr8
-		move.l #0xFF,D1  // count
-.xr8:
-		move.l D4,D0
-		bsr read_sectors
-		bmi.s .xr3
-		move.l D1,D0
-		add.l D0,D0
-		asl.l #8,D0 // * 512
-		add.l D0,A0 // buffer
-		add.l D1,D2 // start sector
-	sub.l D1,D3
-	bgt.s .xr7
-	moveq #0,D0              // OK
-.xr3:
- 	rts	
-
-XHInqDev2:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug136(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	move.l pun_ptr,A0
- 	moveq #0,D0
-	move.w 10(A6),D0         // bios_device
-	cmp.l #2,D0              // C
-	bcs.s .xdd2
-	cmp.l #16,D0
-	bcc.s .xdd2
-	moveq #0,D1
-	move.b pinfo_pun(A0,D0.w),D1
-	bpl.s .xdd1
-.xdd2:	
-	moveq #-46,D0            // invalid drive number
-	rts
-.xdd1:	
-	move.l 12(A6),A1         // major
-	move.w D1,(A1)
-	move.l 16(A6),A1         // minor
-	clr.w (A1)
-	move.l pinfo_pstart(A0,D0.w*4),D1
-	move.l 20(A6),A1         // start_sector
-	move.l D1,(A1)
-	lea pinfo_bpb(A0),A2
-	move.l D0,D1
-	asl.l #5,D1              // * 32
-	add.l A2,D1
-	move.l 20(A6),A1         // bpb
-	move.l D1,(A1)
-	move.l 24(A6),A1         // blocks
-	lea pinfo_psize(A0),A2
-	move.l (A2,D0.w*4),(A1)
-	move.l 28(A6),A1         // partid
-	move.b pinfo_ptype+1(A2,D0.w*4),(A1)
-	move.b pinfo_ptype+2(A2,D0.w*4),D1
-	bne.s .xdd3
-	moveq #0x44,D1           // D
-.xdd3:
-	move.b D1,1(A1)
-	move.b pinfo_ptype+3(A2,D0.w*4),(A1)
-	moveq #0,D0
-	rts
- 
-XHDriverSpecial:
-XHGetCapacity:
-XHMediumChanged:
-XHMiNTInfo:
-
-	moveq #-32,D0            // invalid function number 
-	rts
-
-XHDOSLimits:
-
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug137(PC),A0
-	bsr debug_display_string
-#endif
-#endif
-	moveq #0,D0
-	move.w 10(A6),D0         // which
-	cmp.l #XH_DL_SECSIZ,D0   // maximal sector size (BIOS level)
-	bne.s .xl1
-	move.l #0x4000,D0
-	rts	
-.xl1:
-	cmp.l #XH_DL_MINFAT,D0   // minimal number of FATs
-	bne.s .xl2
-	moveq #1,D0
-	rts
-.xl2:
-	cmp.l #XH_DL_MAXFAT,D0   // maximal number of FATs
-	bne.s .xl3
-	moveq #2,D0
-	rts
-.xl3:
-	cmp.l #XH_DL_MINSPC,D0   // sectors per cluster minimal
-	bne.s .xl4
-	moveq #2,D0
-	rts
-.xl4:
-	cmp.l #XH_DL_MAXSPC,D0   // sectors per cluster maximal
-	bne.s .xl5
-	moveq #64,D0             // for this Coldfire version of BDOS, else 2
-	rts
-.xl5:
-	cmp.l #XH_DL_CLUSTS,D0   // maximal number of clusters of a 16 bit FAT
-	bne.s .xl6
-	move.l #0x8000,D0
-	rts	
-.xl6:
-	cmp.l #XH_DL_MAXSEC,D0   // maximal number of sectors
-	bne.S .xl7
-	move.l #0x200000,D0      // for this Coldfire version of BDOS, else 0x10000
-	rts
-.xl7:
-	cmp.l #XH_DL_DRIVES,D0   // maximal number of BIOS drives supported by the DOS
-	bne.s .xl8
-	moveq #16,D0
-	rts
-.xl8:
-	moveq #-32,D0            // invalid function number 
-	rts
-
-	// IDE emulation
-	.chip 5200
-	
-#if 0        // unfinished, to fix with MMU update_tlb access fault !!!
-access_error_ide:                     // called out of cf68klib
-
-	move.w #0x2700,SR        // mask interrupts
-	move.l SP,save_sp
-	move.l D0,save_registers
-	move.l D1,save_registers+4
-	move.l A0,save_registers+32
-	move.l save_sp,A0
-	move.w (A0),D0           // format
-	move.w D0,D1
-	lsr.l #8,D0
-	and.l #0xC,D0
-	and.l #3,D1
-	or.l D0,D1               // FS
-	cmp.l #0xA,D1            // TLB miss on data write
-	beq.s .error_on_data
-	cmp.l #0xC,D1            // TLB miss on data read
-	bne .not_ide_access
-.error_on_data:
-	move.l __MMU_BASE+0x10,D0 // MMUAR
-	move.l D0,save_mmuar
-	cmp.l #FALCON_ATA_DATA,D0
-	bcs .not_ide_access
-	cmp.l #FALCON_ATA_DATA+0x3F,D0
-	bhi .not_ide_access
-	lea access_fault_stack,SP
-	move.w 2(A0),D0          // SR
-	move.w D0,save_sr
-	lea save_registers,A0
-	movem.l D2-D7,8(A0)
-	movem.l A1-A6,36(A0)
-	move.l save_sp,A0
-	move.l 4(A0),A0          // PC
-	moveq #0,D0
-	move.w (A0)+,D0          // opcode
-	move.l D0,D1
-	and.l #0xF000,D0
-	cmp.l #0x1000,D0         // move.b
-	bne .not_move_b
-	move.l D1,D0             // opcode
-	and.l #0xFFF8,D0
-	cmp.l #0x13C0,D0         // move.b Dx,FALCON_ATA
-	beq.s .move_b_dx_ata
-	move.l D1,D0             // opcode
-	and.l #0xF1F8,D0
-	cmp.l #0x1080,D0         // move.b Dx,(Ax)
-	beq.s .write_register_b
-	cmp.l #0x1100,D0         // move.b Dx,-(Ax)
-	beq.s .write_register_b
-	cmp.l #0x10C0,D0         // move.b Dx,(Ax)+
-	bne.s .not_move_b_dx_ax
-	move.l D1,D0             // opcode
-	swap D0
-	lsr.l #1,D0
-	and.l #7,D0              // address register index
-	move.l A0,-(SP)
-	lea save_registers,A0
-	lea 32(A0,D0.w*4),A0
-	addq.l #1,(A0)           // (Ax)+
-	move.l (SP)+,A0          // PC
-	bra.s .move_b_dx_ata	
-.not_move_b_dx_ax:
-	cmp.l #0x1140,D0         // move.b Dx,d16(Ax)
-	beq.s .move_b_dx_dax
-	cmp.l #0x1180,D0         // move.b Dx,d8(Ax,Xi)
-	bne .not_move_b_dx_dax
-.move_b_dx_dax:
-	addq.l #2,A0             // fix PC
-	bra.s .write_register_b
-.move_b_dx_ata:
-	addq.l #4,A0             // fix PC
-.write_register_b:
-	move.l A0,save_pc
-
-#ifdef DEBUG
-	move.l save_sp,A0
-	move.l 4(A0),A0          // PC
-	move.w (A0),D0           // opcode
-	bsr debug_hex_word
-	moveq #0x20,D0
-	bsr debug_display_char
-	move.l save_pc,D0        // PC updated
-	bsr debug_hex_long
-
-	moveq #0x20,D0
-	bsr debug_display_char	
-	move.l save_sp,A0
-	move.l 4(A0),A0          // PC
-	move.w (A0),D0           // opcode
-	bsr debug_hex_word
-
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-
-
-	lea save_registers,A0
-	moveq #7,D0
-	and.l D1,D0              // opcode => register index
-	move.l (A0,D0.w*4),D1    // value
-
-
-#ifdef DEBUG
-	move.l save_sp,A0
-	move.l 4(A0),A0          // PC
-	move.w (A0),D0           // opcode
-	bsr debug_hex_word
-	moveq #0x20,D0
-	bsr debug_display_char
-	move.l save_pc,D0        // PC updated
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-
-
-	move.l save_mmuar,D0
-	lsr.l #2,D0              // / 4
-	not.l D0
-	and.l #0xF,D0
-	bclr #3,D0
-	beq .end_opcode
-	lea save_ide_registers,A0
-	move.b D1,(A0,D0.w)
-	tst.l D0
-	bne .end_opcode          // <> cmd
-	bra .send_ide_cmd
-.not_move_b_dx_dax:
-	move.l D1,D0             // opcode
-	and.l #0xF1FF,D0
-	cmp.l #0x1039,D0         // move.b FALCON_ATA,Dx
-	beq.s .move_b_ata_dx
-	move.l D1,D0             // opcode
-	and.l #0xF1F8,D0
-	cmp.l #0x1010,D0         // move.b (Ax),Dx
-	beq.s .read_register_b
-	cmp.l #0x1020,D0         // move.b -(Ax),Dx
-	beq.s .read_register_b
-	cmp.l #0x1018,D0         // move.b (Ax)+,Dx
-	bne.s .not_move_b_ax_dx
-	moveq #7,D0
-	and.l D1,D0              // opcode => address register index
-	move.l A0,-(SP)
-	lea save_registers,A0
-	lea 32(A0,D0.w*4),A0
-	addq.l #1,(A0)           // (Ax)+
-	move.l (SP)+,A0          // PC
-	bra.s .move_b_ata_dx
-.not_move_b_ax_dx:
-	cmp.l #0x1028,D0         // move.b d16(Ax),Dx
-	beq.s .move_b_dax_dx
-	cmp.l #0x1030,D0         // move.b d8(Ax,Xi),Dx
-	bne.s .not_move_b_dax_dx
-.move_b_dax_dx:
-	addq.l #2,A0             // fix PC
-	bra.s .read_register_b
-.move_b_ata_dx:
-	addq.l #4,A0             // fix PC
-.read_register_b:
-	move.l A0,save_pc
-	lsr.l #8,D1
-	lsr.l #1,D1
-	and.l #7,D1              // register index
-	bra.s .read_register_dx
-.not_move_b_dax_dx:
-.not_move_b:
-	bra .unknow_opcode
-.read_register_dx:
-	move.l save_mmuar,D0
-	lea ATA_ERROR_REGISTER,A0
-	cmp.l #FALCON_ATA_ERROR_REGISTER,D0
-	beq.s .update_register
-	lea ATA_SECTOR_COUNT,A0
-	cmp.l #FALCON_ATA_SECTOR_COUNT,D0
-	beq.s .update_register
-	lea ATA_SECTOR_NUM,A0
-	cmp.l #FALCON_ATA_SECTOR_NUM,D0
-	beq.s .update_register
-	lea ATA_CYLINDER_LOW,A0
-	cmp.l #FALCON_ATA_CYLINDER_LOW,D0
-	beq.s .update_register
-	lea ATA_CYLINDER_HIGH,A0
-	cmp.l #FALCON_ATA_CYLINDER_HIGH,D0
-	beq.s .update_register
-	lea ATA_DEVICE_HEAD,A0
-	cmp.l #FALCON_ATA_DEVICE_HEAD,D0
-	beq.s .update_register
-	lea ATA_CONTROL_DEVICE,A0
-	cmp.l #FALCON_ATA_CONTROL_DEVICE,D0
-	bne .end_opcode
-.update_register:
-	move.b (A0),D0
-	lea save_registers,A0
-	move.b D0,3(A0,D1.w*4)
-	move.l save_sp,A0
-	move.b (A0),D0           // format
-	lsr.l #4,D0
-	and.l #3,D0              // stack alignment
-	sub.l D0,A0
-	subq.l #8,A0             // original stack before access fault
-	move.l A0,save_sp
-	lea save_registers,A0
-	movem.l 4(A0),D1-A6
-	clr.l save_mmuar
-	move.l save_sp,SP
-	move.w save_sr,D0
-	move.w D0,SR	
-	move.l save_registers,D0
-	move.l save_pc,-(SP)
-	rts
-.send_ide_cmd:
-	move.w 2(A0),D0          // sector high / sector low
-	move.w D0,ATA_CYLINDER_HIGH
-	move.w 4(A0),D0          // sector num / sector count
-	move.w D0,ATA_SECTOR_NUM
-	move.b 6(A0),D0          // features (error when read)
-	move.w D0,ATA_ERROR_REGISTER
-	moveq #2,D0              // control device, disable interrupt
-	move.b D0,ATA_CONTROL_DEVICE	
- 	move.w (A0),D0           // command, C/D/H
- 	move.w D0,ATA_STATUS_COMMAND
-.end_opcode:
-#ifdef DEBUG
-	move.l save_sp,A0
-	move.l 4(A0),A0          // PC
-	move.w (A0),D0           // opcode
-	bsr debug_hex_word
-	moveq #0x20,D0
-	bsr debug_display_char
-	move.l save_pc,D0        // PC updated
-	bsr debug_hex_long
-	moveq #0x20,D0
-	bsr debug_display_char
-	move.l save_sp,A0
-	move.w (A0),D0
-	bsr debug_hex_word       // format
-	moveq #0x20,D0
-	bsr debug_display_char
-	move.w 2(A0),D0
-	bsr debug_hex_word       // SR
-	moveq #0x20,D0
-	bsr debug_display_char
-	move.l A0,D0
-	bsr debug_hex_long	
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-	move.l save_sp,A0
-	move.b (A0),D0           // format
-	lsr.l #4,D0
-	and.l #3,D0              // stack alignment
-	sub.l D0,A0
-	subq.l #8,A0             // original stack before access fault
-	move.l A0,save_sp
-	clr.l save_mmuar
-	lea save_registers,A0
-	move.l 4(A0),D1
-	movem.l 32(A0),A0-A6
-	move.l save_sp,SP
-	move.w save_sr,D0
-	move.w D0,SR	
-	move.l save_registers,D0
-	move.l save_pc,-(SP)
-	rts
-.unknow_opcode:
-	move.l save_sp,SP
-.not_ide_access:
-	move.l save_registers+32,A0	
-	move.l save_registers+4,D1
-	move.l save_registers,D0
-	move.l old_access_error,-(SP)
-	rts
-#endif /* #if 0 */
-
-	// IDE driver
-	.chip 68060
-
-install_xbra:	// A0: handler, D0: vector 
-
-#ifdef COLDFIRE
-	lea -28(SP),SP
-	movem.l D1-D3/A0-A3,(SP)
-#else
-	movem.l D1-D3/A0-A3,-(SP)
-#endif
-	moveq #0,D3
-	move.w D0,D3             // vector
-	move.l A0,A3             // handler
-	move.w #3,-(SP)          // TT ram if possible
-	move.l #18,-(SP)         // size
-	move.w #0x44,-(SP)       // Mxalloc
-	trap #1 
-	addq.l #8,SP
-	tst.l D0
-	beq.s .error_xbra
-             move.l D0,A0
-             move.l #0x58425241,(A0)+ // XBRA
-	move.l #0x5F445256,(A0)+ // _DRV
-	clr.l (A0)+	
-	move.w #0x4EF9,(A0)+     // JMP
-	move.l A3,(A0)+          // handler
-	lea -10(A0),A0
-	cpusha BC
-	move.l D3,A1
-	move.l (A1),D0
-	move.l D0,(A0)+          // old vector
-	move.l A0,(A1)           // JMP, new vector
-.error_xbra:
-	tst.l D0
-#ifdef COLDFIRE
-	movem.l (SP),D1-D3/A0-A3
-	lea 28(SP),SP
-#else
-	movem.l (SP)+,D1-D3/A0-A3
-#endif
-	rts
-
-install_hddriver:
-
-#ifdef COLDFIRE
-	lea -32(SP),SP
-	movem.l D1-D4/A0-A3,(SP)
-#ifdef DEBUG
-	lea debug128(PC),A0
-	bsr debug_display_string	
-	move.l pun_ptr,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-#else
-	movem.l D1-D4/A0-A3,-(SP)
-#endif
-	move.l pun_ptr,D0
-	beq .no_drive
-	move.l D0,A3
-	lea pinfo_bpb(A3),A1
-	move.l #((16*32)/4),D0
-.clr_tab_bpb:
-		clr.l (A1)+
-	subq.l #1,D0
-	bpl.s .clr_tab_bpb
-	moveq #2,D4              // logical drive
-.loop_partition:
-		moveq #0,D0
-		move.b pinfo_pun(A3,D4.l),D0
-		bmi .next_partition
-		swap D0
-		lea pinfo_flags(A3),A0
-		tst.w (A0,D4.l*2)
-		smi.b D0                 // flag swap
-		ext.w D0
-		swap D0                  // swap/drive
-		move.l pinfo_pstart(A3,D4.l*4),D2
-		moveq #1,D1              // 1 sector
-		move.l _dskbufp,A0       // read boot sector
-		bsr read_sectors
-		bmi .next_partition
-		move.l _dskbufp,A0       // boot sector
-		lea pinfo_bpb(A3),A1
-		move.l D4,D2             // logical drive
-		asl.l #5,D2              // * 32
-		add.l D2,A1
-		moveq #0,D2
-		move.b 0xC(A0),D2
-		asl.l #8,D2
-		move.b 0xB(A0),D2        // BPS
-		move.w D2,(A1)           // sector size
-		moveq #0,D1
-		move.b 0xD(A0),D1        // SPC
-		move.w D1,2(A1)          // cluster size in sectors
-		move.w D1,D0
-		mulu D2,D0
-		move.w D0,4(A1)          // cluster size in bytes
-		moveq #0,D0
-		move.b 0x12(A0),D0
-		asl.l #8,D0
-		move.b 0x11(A0),D0       // NDIRS
-		asl.l #5,D0              // * 32
-		divu D2,D0               // / sector size
-		move.w D0,6(A1)          // size directory in sectors
-		moveq #0,D2
-		move.b 0x17(A0),D2
-		asl.l #8,D2
-		move.b 0x16(A0),D2       // SPF
-		move.w D2,8(A1)          // FAT size
-		moveq #0,D0
-		move.b 0xF(A0),D0
-		asl.l #8,D0
-		move.b 0xE(A0),D0        // RES
-		move.l D0,D3
-		add.l D2,D3              // + FAT size
-		move.w D3,10(A1)         // 1st sector of FAT2 
-		moveq #0,D3
-		move.b 0x10(A0),D3       // NFATS
-		mulu D2,D3               // * FAT size
-		add.l D0,D3              // + RES
-		moveq #0,D0
-		move.w 6(A1),D0          // size directory in sectors
-		add.l D3,D0
-		move.w D0,12(A1)         // 1st data sector
-		moveq #0,D2
-		move.b 0x14(A0),D2
-		asl.l #8,D2
-		move.b 0x13(A0),D2       // NSECTS
-		bne.s .nsects_ok
-		lea pinfo_psize(A3),A2
-		move.l (A2,D4.w*4),D2    // partition size in sectors
-		sub.l D0,D2              // - 1st data sector
-.nsects_ok:
-		divu D1,D2
-		move.w D2,14(A1)         // total clusters
-		moveq #1,D0
-		move.w D0,16(A1)         // FAT 16
-		clr.w 18(A1)
-		clr.l 20(A1)
-		clr.l 24(A1)
-		clr.l 28(A1)
-		move.l _drvbits,D0
-		bset D4,D0               // logical drive
-		move.l D0,_drvbits
-#ifdef DEBUG
-		lea debug125(PC),A0
-		bsr debug_display_string
-		moveq #8,D1
-.loop_bpb:
-			move.w (A1)+,D0
-			bsr debug_hex_word
-			moveq #0x20,D0
-			bsr debug_display_char
-		subq.l #1,D1
-		bpl.s .loop_bpb
-		moveq #13,D0
-		bsr debug_display_char
-		moveq #10,D0
-		bsr debug_display_char
-		lea debug129(PC),A0
-		bsr debug_display_string
-		move.l _drvbits,D0
-		bsr debug_hex_long
-		moveq #13,D0
-		bsr debug_display_char
-		moveq #10,D0
-		bsr debug_display_char
-#endif
-.next_partition:
-		addq.l #1,D4
-	cmp.l #16,D4
-	bcs .loop_partition
-	lea pinfo_cookie(A3),A0
-	move.l #0x41484449,(A0)  // AHDI
-	move.l A0,4(A0)
-	move.w #0x0300,pinfo_vernum(A3)
-	move.w #0x4000,pinfo_maxsiz(A3)
-	move.w SR,D0
-	move.w D0,-(SP)
-	or.l #0x700,D0           // mask interrupts
-	move.w D0,SR
-	lea det_hdv_bpb(PC),A0
-	move.w #hdv_bpb,D0
-	bsr install_xbra
-	move.l D0,old_hdv_bpb_hd
-	lea det_hdv_rw(PC),A0
-	move.w #hdv_rw,D0
-	bsr install_xbra	
-	move.l D0,old_hdv_rw_hd
-	lea det_hdv_mediach(PC),A0
-	move.w #hdv_mediach,D0
-	bsr install_xbra
-	move.l D0,old_hdv_mediach_hd
-	move.l cookie,D0
-	beq.s .no_cookie_jar
-	move.l D0,A0
-.find_cookie_jar:
-		tst.l (A0)
-		beq.s .cookie_slot_free
-		addq.w #8,A0
-	bra.s .find_cookie_jar
-.cookie_slot_free:
-	move.l 4(A0),12(A0)      // copy size
-	move.l #0x58484449,(A0)+ // XHDI
-	lea xhdi(PC),A2
-	move.l A2,(A0)+
-	clr.l (A0)
-.no_cookie_jar:
-	move.w (SP)+,D0
-	move.w D0,SR
-	lea pinfo_flags(A3),A0
-	moveq #0,D4              // logical drive
-.search_partition_boot:
-		move.w (A0)+,D0
-		btst #0,D0
-		bne.s .found_partition_boot
-		addq.l #1,D4
-	cmp.l #16,D4
-	bcs.s .search_partition_boot
-	bra.s .no_drive
-.found_partition_boot:
-	move.w D4,_bootdev
-	move.w D4,-(SP)          // logical boot drive
-	move.w #0xE,-(SP)        // Dsetdrv
-	trap #1
-	addq.l #4,SP
-.no_drive:
-#ifdef COLDFIRE
-	movem.l (SP),D1-D4/A0-A3
-	lea 32(SP),SP
-#else
-	movem.l (SP)+,D1-D4/A0-A3
-#endif
-	rts
-	
-det_hdv_bpb:
-
-	move.l A0,-(SP)
-	move.l pun_ptr,A0
- 	moveq #0,D0
-	move.w 4+4(SP),D0        // drive
-	cmp.l #2,D0              // C
-	bcs.s .dhb2
-	cmp.l #16,D0
-	bcc.s .dhb2
-	tst.b pinfo_pun(A0,D0.l)
-	bpl.s .dhb1
-.dhb2:
-	move.l (SP)+,A0
-	moveq #0,D0
-	move.l old_hdv_bpb_hd,-(SP)
-	rts
-.dhb1:
-	lea pinfo_bpb(A0),A0
-	asl.l #5,D0              // * 32
-	add.l A0,D0
-	move.l (SP)+,A0
-	rts
-	
-det_hdv_rw:
-
-	lea -20(SP),SP
-	movem.l D1-D4/A0,(SP)
-	move.l pun_ptr,A0
- 	moveq #0,D0
-	move.w 14+20(SP),D0      // drive
-	cmp.l #2,D0              // C
-	bcs.s .dhr10
-	cmp.l #16,D0
-	bcc.s .dhr10
-	moveq #0,D4
-	move.b pinfo_pun(A0,D0.l),D4
-	bpl.s .dhr1
-.dhr10:
-	movem.l (SP),D1-D4/A0
-	lea 20(SP),SP
-	moveq #0,D0
-	move.l old_hdv_rw_hd,-(SP)
-	rts
-.dhr1:	
-	moveq #0,D2
-	move.w 12+20(SP),D2      // logical sector
-	bpl.s .dhr9
-	move.l 16+20(SP),D2      // logical sector	
-.dhr9:	
-	tst.l D2
-	bmi .dhr2                // negative logical sector
-	move.l 6+20(SP),D1       // buffer
-	beq .dhr4                // no buffer
-	move.l pinfo_pstart(A0,D0.l*4),D3
-	swap D4
-	lea pinfo_flags(A0),A0
-	tst.w (A0,D0.l*2)
-	smi.b D4                 // flag swap
-	ext.w D4	
-	swap D4                  // swap/drive
-	lea pinfo_bpb-pinfo_flags(A0),A0
-	asl.l #5,D0              // * 32
-	add.l D0,A0
-	move.w 14(A0),D0         // total clusters
-	mulu.w 2(A0),D0          // cluster size in sectors
-	cmp.l D0,D2              // logical sector to hight
-	bcc .dhr2
-#ifdef DEBUG
-	move.l A0,-(SP)
-	lea debug127(PC),A0
-	bsr debug_display_string	
-	move.w 4+24(SP),D0       // rwflag
-	bsr debug_hex_word
-	moveq #0x20,D0
-	bsr debug_display_char
-	moveq #0x30,D0
-	bsr debug_display_char
-	moveq #0x78,D0
-	bsr debug_display_char
-	move.l D1,D0             // buffer
-	bsr debug_hex_long
-	moveq #0x20,D0
-	bsr debug_display_char
-	moveq #0x30,D0
-	bsr debug_display_char
-	moveq #0x78,D0
-	bsr debug_display_char
-	move.w 10+24(SP),D0      // num sectors
-	bsr debug_hex_word
-	moveq #0x20,D0
-	bsr debug_display_char
-	moveq #0x30,D0
-	bsr debug_display_char
-	moveq #0x78,D0
-	bsr debug_display_char
-	move.l D2,D0             // logical sector
-	bsr debug_hex_long
-	moveq #0x20,D0
-	bsr debug_display_char
-	moveq #0x30,D0
-	bsr debug_display_char
-	moveq #0x78,D0
-	bsr debug_display_char
-	move.w 14+24(SP),D0      // drive
-	bsr debug_hex_word
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-	move.l (SP)+,A0
-#endif
-	moveq #0,D0
-	move.w (A0),D0           // sector size
-	lsr.l #8,D0
-	lsr.l #1,D0              // / 512
-	move.l D1,A0             // buffer
-	move.w 10+20(SP),D1      // num sectors
-	beq .dhr4                // no sectors
-	mulu D0,D1
-	mulu.l D0,D2
-	add.l D3,D2              // start sector
-	move.l D1,D3             // count
-	btst #0,5+20(SP)         // rwflag
-	beq.s .dhr7              // read
-	tst.l D2                 // logical sector
-	beq.s .dhr2              // root sector
-.dhr5:
-		move.l D3,D1     // count
-		cmp.l #0x100,D1
-		bcs.s .dhr6
-		move.l #0xFF,D1  // count
-.dhr6:
-		move.l D4,D0
-		bsr write_sectors
-		bmi.s .dhr3
-		move.l D1,D0
-		add.l D0,D0
-		asl.l #8,D0 // * 512
-		add.l D0,A0 // buffer
-		add.l D1,D2 // start sector
-	sub.l D1,D3
-	bgt.s .dhr5
-	bra.s .dhr4
-.dhr2:
-	moveq #-1,D0             // error
-	bra.s .dhr3
-.dhr7:
-		move.l D3,D1     // count
-		cmp.l #0x100,D1
-		bcs.s .dhr8
-		move.l #0xFF,D1  // count
-.dhr8:
-		move.l D4,D0
-		bsr read_sectors
-		bmi.s .dhr3
-		move.l D1,D0
-		add.l D0,D0
-		asl.l #8,D0 // * 512
-		add.l D0,A0 // buffer
-		add.l D1,D2 // start sector
-	sub.l D1,D3
-	bgt.s .dhr7
-.dhr4:
-	moveq #0,D0              // OK
-.dhr3:
-	movem.l (SP),D1-D4/A0
-	lea 20(SP),SP
- 	rts
- 	
-det_hdv_mediach:
-
-	move.l A0,-(SP)
-	move.l pun_ptr,A0
- 	moveq #0,D0
-	move.w 4+4(SP),D0        // drive
-	cmp.l #2,D0              // C
-	bcs.s .dhm2
-	cmp.l #16,D0
-	bcc.s .dhm2
-	tst.b pinfo_pun(A0,D0.l)
-	bpl.s .dhm1
-.dhm2:
-	move.l (SP)+,A0
-	moveq #0,D0
-	move.l old_hdv_mediach_hd,-(SP)
-	rts
-.dhm1:
-	lea pinfo_flags(A0),A0
-	add.l D0,A0
-	add.l D0,A0
-	bclr #7,1(A0)
-	sne.b D0
-	and.l #2,D0
-	move.l (SP)+,A0
-	rts
-	
-#endif /* COLDFIRE */
-
 swap_buffer:		// A0: buffer, D0: count
 
-#ifdef COLDFIRE
-	lea -16(SP),SP
-	movem.l D0-D2/A0,(SP)
-	and.l #0xFFFF,D0
-	bra.s .end_loop_swap
-.loop_swap:
-	move.l #255,D2
-.loop_swap_2:
-			move.b 1(A0),D1
-			asl.l #8,D1
-			move.b (A0),D1
-			move.w D1,(A0)+
-		subq.l #1,D2
-		bpl.s .loop_swap_2
-.end_loop_swap:
-	subq.l #1,D0
-	bpl.s .loop_swap
-	movem.l (SP),D0-D2/A0
-	lea 16(SP),SP
-#else
 	movem.l D0-D2/A0,-(SP)
 	bra.s .end_loop_swap
 .loop_swap:
@@ -7055,17 +3335,11 @@ swap_buffer:		// A0: buffer, D0: count
 .end_loop_swap:
 	dbf D0,.loop_swap
 	movem.l (SP)+,D0-D2/A0
-#endif
 	rts
 
 read_sectors: 	// A0: buffer, D0: drive, D0.H: flag swap bytes, D1: count, D2.L: start sector
 		// return error code inside D0
-#ifdef COLDFIRE
-	lea -36(SP),SP
-	movem.l D1-D4/A0-A4,(SP)
-#else
 	movem.l D1-D4/A0-A4,-(SP)
-#endif
 	move.l A0,A4             // buffer
 	move.l D0,D4             // physical drive & flag swap bytes
 	move.w D1,D3             // count
@@ -7134,22 +3408,12 @@ read_sectors: 	// A0: buffer, D0: drive, D0.H: flag swap bytes, D1: count, D2.L:
 	move.l (SP)+,D0
 #endif	
 	tst.l D0
-#ifdef COLDFIRE
-	movem.l (SP),D1-D4/A0-A4
-	lea 36(SP),SP
-#else
 	movem.l (SP)+,D1-D4/A0-A4
-#endif
 	rts
 	
 write_sectors: 	// A0: buffer, D0: drive, D0.H: flag swap bytes, D1: count, D2.L: start sector
 		// return error code inside D0
-#ifdef COLDFIRE
-	lea -36(SP),SP
-	movem.l D1-D4/A0-A4,(SP)
-#else
 	movem.l D1-D4/A0-A4,-(SP)
-#endif
 	move.l A0,A4             // buffer
 	move.w D1,D3             // count
 	move.l D0,D4             // physical drive & flag swap bytes
@@ -7221,27 +3485,8 @@ write_sectors: 	// A0: buffer, D0: drive, D0.H: flag swap bytes, D1: count, D2.L
 	move.l (SP)+,D0
 #endif	
 	tst.l D0
-#ifdef COLDFIRE
-	movem.l (SP),D1-D4/A0-A4
-	lea 36(SP),SP
-#else
 	movem.l (SP)+,D1-D4/A0-A4
-#endif
 	rts
-	
-#ifdef COLDFIRE
-
-error_unknow_device:
-
-	moveq #-15,D0
-	rts
-
-error_ok:
-
-	moveq #0,D0
-	rts
-
-#endif /* COLDFIRE */
 	
 #ifdef USE_ATARI_IO
 	
@@ -7285,11 +3530,7 @@ scsi_cmd:	// D0: drive, D1.L: DMA bytes, D2: bytes cmd, A0: DMA buffer, A1: buff
 	move.w #0x8F,0xFFFF8606 // Initiate Receive/Reset
 	move.w #0,0xFFFF8604
 	move.w #0,0xFFFF8606    // read transfer
-#ifdef COLDFIRE
-	bsr get_slice_timer
-#else
 	bsr get_timer_c
-#endif
 	move.l D0,D3            // speed test	
 	bsr wait_end_cmd_scsi
 	bmi.s .sr4              // time-out
@@ -7297,11 +3538,7 @@ scsi_cmd:	// D0: drive, D1.L: DMA bytes, D2: bytes cmd, A0: DMA buffer, A1: buff
 	beq.s .sr2
 	move.w #0x20,0xFFFF8606
 .sr2:
-#ifdef COLDFIRE
-	bsr get_slice_timer
-#else
 	bsr get_timer_c
-#endif
 	sub.l D3,D0
 	move.l D0,D3            // time speed test
 	bsr get_status_scsi
@@ -7608,12 +3845,7 @@ ide_cmd: 	// D0.L: bytes, A0: IDE buffer, A1: cmd buffer
 	move.w D3,ATA_SECTOR_NUM
 #endif /* MCF5445X */
 #else /* USE_ATARI_IO */
-#ifdef COLDFIRE
-	lea -16(SP),SP
-	movem.l D2-D3/A0-A1,(SP)
-#else
 	movem.l D2-D3/A0-A1,-(SP)
-#endif
 	st.b flock
 	move.l D0,D2             // 0: non-data
 	move.b 1(A1),ATA_DEVICE_HEAD   // C/D/H
@@ -7678,11 +3910,7 @@ ide_cmd: 	// D0.L: bytes, A0: IDE buffer, A1: cmd buffer
 	move.b 6(A1),ATA_ERROR_REGISTER  // features (error when read)
 	clr.b ATA_CONTROL_DEVICE         // control device, INTRQ on MFP IO5
  	move.b (A1),ATA_STATUS_COMMAND   // command
-#ifdef COLDFIRE
-	bsr get_slice_timer
-#else
 	bsr get_timer_c
-#endif
 	move.l D0,D3             // speed test
 	moveq #0x30,D0           // write sector(s)
 	cmp.b (A1),D0
@@ -7801,11 +4029,7 @@ ide_cmd: 	// D0.L: bytes, A0: IDE buffer, A1: cmd buffer
 		dbf D0,.ir3
 	dbf D1,.ir10
 .ir12:
-#ifdef COLDFIRE
-	bsr get_slice_timer
-#else
 	bsr get_timer_c
-#endif
 	sub.l D3,D0
 	move.l D0,D3	           // time speed test
 #endif /* USE_ATARI_IO */
@@ -7821,18 +4045,7 @@ ide_cmd: 	// D0.L: bytes, A0: IDE buffer, A1: cmd buffer
 .ir2:
 	moveq #-1,D0              // error, time-out
 .ir1:
-#ifdef COLDFIRE
-#ifdef MCF5445X
-	moveq #2,D1
-	move.b D1,ATA_CONTROL_DEVICE      // control device, disable interrupt
-#else /* MCF548X */
-	moveq #2,D1
-//	move.b D1,ATA_CONTROL_DEVICE      // control device, disable interrupt
-	move.w D1,ATA_CONTROL_DEVICE-1    // control device, disable interrupt
-#endif /* MCF5445X */
-#else /* ATARI */
 	move.b #2,ATA_CONTROL_DEVICE      // control device, no INTRQ on MFP IO5
-#endif /* COLDFIRE */
 	clr.w flock
 	move.l D3,D1              // time speed test
 #ifndef USE_ATARI_IO
@@ -7863,12 +4076,7 @@ ide_cmd: 	// D0.L: bytes, A0: IDE buffer, A1: cmd buffer
 #endif
 #endif
 .ir0:
-#ifdef COLDFIRE
-	movem.l (SP),D2-D3/A0-A1
-	lea 16(SP),SP
-#else
 	movem.l (SP)+,D2-D3/A0-A1
-#endif
 	tst.l D0
 	rts
 
@@ -7906,7 +4114,7 @@ debug_ide:
 	rts
 #endif /* DEBUG */
 #endif /* MCF5445X */
-#endif /* COLDFIRE */
+#endif /* USE_ATARI_IO */
 	
 wait_end_cmd_ide:	// time-out inside D0.L, return D0 < 0 => time-out
 
@@ -8033,12 +4241,6 @@ menu_boot:
 	moveq #0xC,D0            // ALT or CTRL
 	and.b (A0),D0
 	bne .normal_boot
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug117(PC),A0
-	bsr debug_display_string
-#endif
-#endif
 	pea -12(A6)              // buffer
 	move.w #12,-(SP)         // size
 	clr.w -(SP)              // start
@@ -8062,11 +4264,7 @@ menu_boot:
 	bsr display_string
 .display_menu_again:
 		lea tab_os(PC),A1
-#ifdef COLDFIRE
-		moveq #1,D1
-#else
 		moveq #2,D1
-#endif
 		moveq #0,D2
 		moveq #0,D3
 .display_menu_loop:	
@@ -8082,12 +4280,6 @@ menu_boot:
 			moveq #0x70,D0
 			bsr display_char
 .no_display_inv:
-#ifdef COLDFIRE
-			lea message80(PC),A0 // TOS
-			cmp.l #1,D1
-			beq.s .display_line_os
-			lea message81(PC),A0 // MagiC
-#else
 			lea message80(PC),A0 // TOS
 			cmp.w #2,D1
 			beq.s .display_line_os
@@ -8095,7 +4287,6 @@ menu_boot:
 			cmp.w #1,D1
 			beq.s .display_line_os
 			lea message82(PC),A0 // Linux
-#endif
 .display_line_os:
 			bsr display_string_single
 			move.b (A1)+,D0
@@ -8154,30 +4345,15 @@ menu_boot:
 			beq.s .key_down
 		bra.s .wait_menu
 .key_up:
-#ifdef COLDFIRE
-		moveq #1,D1
-		subq.l #1,D3
-#else
 		moveq #2,D1
 		subq.w #1,D3
-#endif
 		bpl.s .cursor_up_loop
-#ifdef COLDFIRE
-		moveq #1,D3
-#else
 		moveq #2,D3
-#endif
 		bra.s .cursor_up_loop
 .key_down:	
-#ifdef COLDFIRE
-		moveq #1,D1
-		addq.l #1,D3
-		cmp.l #2,D3
-#else
 		moveq #2,D1
 		addq.w #1,D3
 		cmp.w #3,D3
-#endif
 		bcs.s .cursor_up_loop
 		moveq #0,D3
 .cursor_up_loop:
@@ -8202,15 +4378,6 @@ menu_boot:
 	trap #14
 	lea 12(SP),SP
 .unchanged:
-#ifdef COLDFIRE
-	moveq #0,D0
-	move.w -12(A6),D0        // bootpref
-	cmp.l #0x80,D0           // TOS
-	beq.s .normal_boot
-	cmp.l #8,D0              // MagiC
-	bne.s .normal_boot
-	lea magxboot,A1	
-#else
 	move.w -12(A6),D0        // bootpref
 	cmp.w #0x80,D0           // TOS
 	beq.s .normal_boot
@@ -8220,7 +4387,6 @@ menu_boot:
 	cmp.w #0x10,D0           // Linux
 	bne.s .normal_boot
 	lea ataboot,A1
-#endif
 .call_boot:
 	move.l #0x5F465245,D0    // _FRE cookie, external clock
 	bsr get_cookie
@@ -8332,24 +4498,9 @@ wait_key:
 
 test_key:
 
-#ifdef COLDFIRE
-	lea -16(SP),SP
-	movem.l D1-D2/A1-A2,(SP)
-#ifdef DEBUG
-	move.w #1,-(SP)          // AUX
-#else
-	move.w #2,-(SP)          // CON
-#endif
-	move.w #1,-(SP)          // Bconstat
-	trap #13
-	addq.l #4,SP
-	movem.l (SP),D1-D2/A1-A2
-	lea 16(SP),SP
-#else
 	move.w #0xB,-(SP)        // Cconis
 	trap #1
 	addq.l #2,SP
-#endif
 	tst.w D0
 	rts
 
@@ -8575,12 +4726,7 @@ fix_bug_nvdi:
 	jsr 0xE0085A             // caches off
 	moveq #3,D0
 	jsr 0xE34348             // v_opnwk
-#ifdef COLDFIRE
-	move.l #CACHE_ENABLE_MODE,D0
-	cmp.l (SP)+,D0
-#else
 	cmp.l #0xA0808000,(SP)+
-#endif
 	bne.s .no_caches	
 	jsr 0xE250C8             // caches on	
 .no_caches:
@@ -8729,49 +4875,6 @@ display_xbra:
 	movem.l (SP)+,D0/A0/A1
 	rts
 
-#ifdef COLDFIRE
-
-#ifdef MCF5445X
-
-get_dtim_timer:
-	
-	move.l MCF_DTIM_DTCN1,D0  // uS
-	rts
-
-#else /* MCF548X */
-
-get_slice_timer:
-	
-	move.l MCF_SLT_SCNT1,D0   // uS * SYSTEM_CLOCK
-	rts
-	
-#endif /* MCF5445X */
-	
-display_mb_by_sec_disk:                // D0: total time
-	
-	lea -12(SP),SP
-	movem.l D0-D1/A0,(SP)
-	move.l #SPEED_BUFFER_SIZE*10,D1 // buffer test size
-	divu.l D0,D1
-	link A6,#-6
-	clr.w -2(A6)
-	lea -4(A6),A0
-	moveq #0,D0
-	move.w D1,D0
-	moveq #3,D1
-	bsr conv_ascii_value
-	move.b -2(A6),-1(A6)
-	move.b #0x2E,-2(A6)
-	bsr display_string_single
-	unlk A6
-	lea message89(PC),A0     // MB/S
-	bsr display_string
-	movem.l (SP),D0-D1/A0
-	lea 12(SP),SP
-	rts
-	
-#else /* ATARI */
-
 get_timer_c:
 
 	move.l D1,-(SP)
@@ -8881,8 +4984,6 @@ display_latency:
 	movem.l (SP)+,D0-D4/A0
 	rts
 	
-#endif /* COLDFIRE */
-
 display_string:
 
 	movem.l D0/A0,-(SP)	
@@ -9014,46 +5115,6 @@ test_keyboard:
 	trap #14
 	addq.l #2,SP
 	move.l D0,D7
-#ifdef COLDFIRE
-	and.l #0x01FFFFE0,D0
-	cmp.l #0x00210000,D0
-//	bne.s .not_january_1st_00h00
-	lea ADDR_DATE,A0
-	moveq #0,D0
-	move.w 4(A0),D0          // year
-	sub.l #1980,D0
-	move.l D0,D1
-	asl.l #4,D1
-	moveq #0,D0
-	move.w 2(A0),D0          // month
-	or.l D0,D1
-	asl.l #5,D1
-	move.w (A0),D0           // day
-	or.l D0,D1
-	asl.l #5,D1
-	move.w 6(A0),D0          // hour
-	or.l D0,D1
-	asl.l #6,D1
-	move.w 8(A0),D0          // mn
-	or.l D0,D1
-	asl.l #5,D1
-	move.l D1,-(SP)
-	move.w #0x16,-(SP)       // Settime
-	trap #14
-	addq.l #2,SP
-	move.l (SP),D1
-	move.w D1,-(SP)
-	move.w #0x2D,-(SP)       // Tsettime
-	trap #1
-	addq.l #4,SP
-	move.l (SP)+,D1
-	swap D1
-	move.w D1,-(SP)
-	move.w #0x2B,-(SP)       // Tsetdate
-	trap #1
-	addq.l #4,SP
-.not_january_1st_00h00:	
-#else /* ATARI */
 	clr.l -(SP)
 	move.l #CT60_SAVE_NVRAM_1,-(SP)
 	move.w #CT60_MODE_READ,-(SP)
@@ -9079,7 +5140,6 @@ test_keyboard:
 	cmp.l #1,D0
 	bhi.s .keyboard_error_2
 .rtc_bypass:	
-#endif /* COLDFIRE */
 	clr.w -(SP)              // STRAM
 	move.l #0x2000,-(SP)     // 8K
 	move.w #0x44,-(SP)       // Mxalloc
@@ -9198,11 +5258,7 @@ test_keyboard:
 	move.w #0x19,-(SP)       // Ikbdws
 	trap #14 
 	addq.l #8,SP
-#ifdef COLDFIRE
-	move.l #0x5F43465F,D0    // _CF_
-#else
 	move.l #0x43543630,D0    // CT60
-#endif
 	bsr get_cookie
 	lea -8(A6),A0
 	moveq #4,D1              // CPU speed * 10 saved inside init_sdram
@@ -9243,11 +5299,6 @@ test_keyboard:
 add_sdram:
 
 	movem.l D1-D7/A1-A5,-(SP)
-#ifdef COLDFIRE
-	move.l _v_bas_ad,D0
-	cmp.l #0x01000000,D0
-	bcs.s .font_16x8
-#endif
 	cmp.w #8,_v_cel_ht       // font 8 x 8
 	bhi.s .font_16x8
 	lea xlf(PC),A0
@@ -9323,26 +5374,12 @@ add_sdram:
 	move.w #rw_parameter,-(SP)
 	trap #14
 	lea 12(SP),SP
-#ifndef COLDFIRE
 	btst #2,D0               // old boot
 	bne.s .old_boot
-#endif
 	bsr test_keyboard
 .old_boot:
 	cmp.l #0x1357BD13,ramvalid
 	bne .not_sdram
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug115(PC),A0
-	bsr debug_display_string
-	move.l ramtop,D0
-	bsr debug_hex_long
-	moveq #13,D0
-	bsr debug_display_char
-	moveq #10,D0
-	bsr debug_display_char
-#endif
-#else
 	move.l _sysbase,A0       // header ROM
 	move.l 0x24(A0),A0       // kbshift
 	move.b (A0),D0
@@ -9360,7 +5397,6 @@ add_sdram:
 	moveq #10,D0
 	bsr display_char
 .not_infos:
-#endif
 	move.l #0x01000000,D1
 	move.l ramtop,D0
 	sub.l D1,D0
@@ -9375,23 +5411,13 @@ add_sdram:
 	beq .ram_valid
 .not_valid:
 	move.l D1,A4
-#ifdef COLDFIRE
-	add.l D0,A4              // end
-#else /* ATARI - CT60 */
 #ifndef INIT_SDRAM_MOVE16
 	add.l D0,A4              // end
 #endif
-#endif /* COLDFIRE */
 	move.l D0,D7
 	lsr.l #8,D7              // / 256
 	lea message16(PC),A0
 	bsr display_string       // init SDRAM
-#ifdef COLDFIRE
-#ifdef DEBUG
-	lea debug116(PC),A0
-	bsr debug_display_string
-#endif
-#endif
 	move.l _hz_200,A5
 	moveq #0,D0
 	moveq #0,D1
@@ -9401,33 +5427,6 @@ add_sdram:
 	move.l D1,A1
 	move.l D2,A2
 	move.l D3,A3
-#ifdef COLDFIRE
-	subq.l #1,D7
-	moveq #0,D6
-	move.w D7,D6
-	clr.w D7
-	swap D7
-	clr.w vblsem
-.init_sdram:
-			lea -256(A4),A4
-			movem.l D0-D3/A0-A3,(A4)
-			movem.l D0-D3/A0-A3,32(A4)
-			movem.l D0-D3/A0-A3,64(A4)
-			movem.l D0-D3/A0-A3,96(A4)
-			movem.l D0-D3/A0-A3,128(A4)
-			movem.l D0-D3/A0-A3,160(A4)
-			movem.l D0-D3/A0-A3,192(A4)
-			movem.l D0-D3/A0-A3,224(A4)
-		subq.l #1,D6
-		bpl.s .init_sdram
-		and.l #0xFFFF,D6
-		moveq #0x2E,D0	
-		bsr display_char
-	subq.l #1,D7
-	bpl.s .init_sdram
-	moveq #1,D0
-	move.w D0,vblsem
-#else /* !COLDFIRE */
 	subq.l #1,D7
 	move.w D7,D6
 	swap D7
@@ -9479,47 +5478,9 @@ add_sdram:
 		moveq #0x2E,D0	
 		bsr display_char
 	dbf D7,.init_sdram
-#endif /* COLDFIRE */
 	move.l _hz_200,D1
 	sub.l A5,D1
 	move.l 4(SP),D0          // size
-#ifdef COLDFIRE
-#if 0 /* test MB/S */
-	move.l _hz_200,-(SP)
-	moveq #9,D7
-.yy:
-	move.l #0x1000000,A4      // src
-	move.l _v_bas_ad,A5       // dst
-	move.l #1280*1024*4,D5
-	move.l #256,D4
-.xx:
-		movem.l (A4),D0-D3/A0-A3
-		movem.l D0-D3/A0-A3,(A5)
-		movem.l 32(A4),D0-D3/A0-A3
-		movem.l D0-D3/A0-A3,32(A5)
-		movem.l 64(A4),D0-D3/A0-A3
-		movem.l D0-D3/A0-A3,64(A5)
-		movem.l 96(A4),D0-D3/A0-A3
-		movem.l D0-D3/A0-A3,96(A5)
-		movem.l 128(A4),D0-D3/A0-A3
-		movem.l D0-D3/A0-A3,128(A5)
-		movem.l 160(A4),D0-D3/A0-A3
-		movem.l D0-D3/A0-A3,160(A5)
-		movem.l 192(A4),D0-D3/A0-A3
-		movem.l D0-D3/A0-A3,192(A5)
-		movem.l 224(A4),D0-D3/A0-A3
-		movem.l D0-D3/A0-A3,224(A5)
-		add.l D4,A4
-		add.l D4,A5
-	sub.l D4,D5
-	bgt.s .xx
-	subq.l #1,D7
-	bpl.s .yy
-	move.l _hz_200,D1
-	sub.l (SP)+,D1
-	move.l #1280*1024*40,D0
-#endif
-#endif
 	divu.l D1,D0
 	divu.l #500,D0
 	link A6,#-6
@@ -9608,10 +5569,6 @@ add_sdram:
 	lea error13(PC),A0
 	bsr display_string
 
-#ifdef COLDFIRE
-	bra.s .no_pci_bios	
-#endif
-
 .no_error_pci_bios:
 	move.l #0x5F504349,D0    // cookie _PCI
 	bsr get_cookie
@@ -9624,13 +5581,9 @@ add_sdram:
 	move.l #0x752019F3,memvalid
 	move.l #0x237698AA,memval2
 	move.l #0x5555AAAA,memval3
-#ifdef COLDFIRE
-	bsr init_cookie_cf
-#else
 	bsr init_cookie_ct60
 	moveq #3,D0
 	jsr 0xE00BD2             // cartridge
-#endif
 	move.l hdv_boot,A0
 	jsr (A0)
 	tst.w D0
@@ -9659,8 +5612,6 @@ test_pci_drivers:
 	rts
 
 	
-#ifndef COLDFIRE /* ATARI - CT60 - CTCM */
-
 ct60_configure_clock:	// D0.L: frequency, D1: mode
 
 	movem.l D1-A0,-(SP)
@@ -10694,13 +6645,7 @@ chip_density:                         // A23-A22 cdy2-1
 	dc.w 0xD,0xA,0xC0,0      // 32Mx8b / 32Mx16b
 	dc.w 0,0,0,0             // end
 	
-#endif /* !COLDFIRE - ATARI - CT60 - CTCM */
-
-#ifdef COLDFIRE
-init_cookie_cf:
-#else
 init_cookie_ct60:
-#endif
 	movem.l D0-D2/A0-A2,-(SP)
 	move.w #3,-(SP)          // TT ram if possible
 	move.l #NB_COOKIES*8,-(SP)
@@ -10740,11 +6685,7 @@ init_cookie_ct60:
 	tst.l D0
 	ble.s .error_cookie_ct60
 	move.l D0,A1
-#ifdef COLDFIRE
-	move.l #0x5F43465F,D0    // _CF_
-#else
 	move.l #0x43543630,D0    // CT60
-#endif
 	bsr get_cookie
 	move.l A0,D0
 	beq.s .error_cookie_ct60
@@ -10756,7 +6697,6 @@ init_cookie_ct60:
 	dbf D0,.clear_data_ct60_cookie
 	move.l 4(A0),A0          // buffer
 	move.l D2,8(A0)          // CPU frequency in MHz * 10
-#ifndef COLDFIRE
 	move.l phystop,A0
 	clr.w count_io3_mfp(A0)
 	move.l _hz_200,start_hz_200(A0)
@@ -10782,22 +6722,9 @@ init_cookie_ct60:
 	move.w #26,-(SP)         // Jdisint
 	trap #14
 	addq.l #4,SP
-#endif
 .error_cookie_ct60:	
 	movem.l (SP)+,D0-D2/A0-A2
 	RTS
-
-#ifdef COLDFIRE
-
-	dc.l 0x58425241          // XBRA
-	dc.l 0x5F43465F          // _CF_
-	dc.l 0
-
-linea000:
-
-	jsr 0xE09512             // address function Linea 0xA000
-	rte
-#else
 
 	dc.l 0x58425241          // XBRA
 	dc.l 0x43543630          // CT60
@@ -10838,6 +6765,4 @@ inter_io3_mfp:
 	movem.l (SP)+,D0/A0
 	bclr #3,0xFFFFFA11       // ISRB
 	rte
-	
-#endif
 	

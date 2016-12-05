@@ -84,12 +84,7 @@ c_set_pixel:
 	movem.l		(a7)+,d0-d3/a0-a2
 	rts
 #else
-#ifdef COLDFIRE
-	lea		-24(a7),a7
-	movem.l		d0-d2/a0-a2,(a7)
-#else
 	movem.l		d0-d2/a0-a2,-(a7)
-#endif
 	ext.l		d1
 	ext.l		d2
 	move.l		d0,-(a7)
@@ -97,13 +92,7 @@ c_set_pixel:
 	move.l		d1,-(a7)
 	move.l		4(a0),-(a7)
 	move.l		(a0),-(a7)
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_write_pixel_r])
-	.chip		5200
-#else
 	ijsr		_write_pixel_r
-#endif
 	tst.l		d0
 	bgt		.write_done
 
@@ -120,27 +109,13 @@ c_set_pixel:
 	move.w		(a2)+,d0
 	move.l		d0,12(a7)
 	move.l		a2,20+5*4(a7)
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_write_pixel_r])
-	.chip		5200
-	move.w		2*4(a7),d0
-	subq.l		#1,d0
-	move.w		d0,2*4(a7)
-#else
 	ijsr		_write_pixel_r
 	subq.w		#1,2*4(a7)
-#endif
 	bne		.write_loop
 
 .write_done:
 	lea		20(a7),a7
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 #endif
 
@@ -188,32 +163,16 @@ c_get_pixel:
 	movem.l		(a7)+,d1-d3/a0-a2
 	rts
 #else
-#ifdef COLDFIRE
-	lea		-20(a7),a7
-	movem.l		d1-d2/a0-a2,(a7)
-#else
 	movem.l		d1-d2/a0-a2,-(a7)
-#endif
 	ext.l		d1
 	ext.l		d2
 	move.l		d2,-(a7)
 	move.l		d1,-(a7)
 	move.l		4(a0),-(a7)
 	move.l		(a0),-(a7)
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_read_pixel_r])
-	.chip		5200
-#else
 	ijsr		_read_pixel_r
-#endif
 	lea		16(a7),a7
-#ifdef COLDFIRE
-	movem.l		(a7),d1-d2/a0-a2
-	lea		20(a7),a7
-#else
 	movem.l		(a7)+,d1-d2/a0-a2
-#endif
 	rts
 #endif
 
@@ -233,19 +192,10 @@ c_get_pixel:
 *---------
 _c_line:
 c_line:
-#ifdef COLDFIRE
-	cmp.l		#0xc0de,d0
-#else
 	cmp.w		#0xc0de,d0
-#endif
 	beq		new_api_line
 old_api_line:
-#ifdef COLDFIRE
-	lea		-24(a7),a7
-	movem.l		d0-d2/a0-a2,(a7)
-#else
 	movem.l		d0-d2/a0-a2,-(a7)
-#endif
 
 	move.l		d6,-(a7)
 	move.l		d0,-(a7)
@@ -255,13 +205,7 @@ old_api_line:
 	move.l		d2,-(a7)
 	move.l		d1,-(a7)
 	move.l		a0,-(a7)
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_line_draw_r])
-	.chip		5200
-#else
 	ijsr		_line_draw_r
-#endif
 	lea		32(a7),a7
 
 	tst.l		d0
@@ -271,30 +215,14 @@ old_api_line:
 	bra		give_up
 
 .line1:
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 .line2:					// Transform multiline into single ones
-#ifdef COLDFIRE
-	lea		-16(a7),a7
-	movem.l		d3-d4/d7/a6,(a7)
-	.chip		68060
-#else
 	movem.l		d3-d4/d7/a6,-(a7)
-#endif
 	move.w		16+2*4+2(a7),d0
 	move.w		d3,d7
-#ifdef COLDFIRE
-	ext.l		d0
-	cmp.l		#1,d0
-#else
 	cmp.w		#1,d0
-#endif
 	bhi		.line_done		// Only coordinate pairs and pairs+marks available so far
 	beq		.use_marks
 	moveq		#0,d7			// Move count
@@ -341,11 +269,7 @@ old_api_line:
 	move.l		d3,12(a7)
 	move.l		d4,16(a7)
 	move.l		32+16+0(a7),24(a7)
-#ifdef COLDFIRE
-	jsr		([_line_draw_r])
-#else
 	ijsr		_line_draw_r
-#endif
 .no_draw:
 	tst.w		d7
 	beq		.no_marks
@@ -372,26 +296,13 @@ old_api_line:
 	bgt		.line_loop
 	lea		32(a7),a7
 .line_done:
-#ifdef COLDFIRE
-	.chip		5200
-	movem.l		(a7),d3-d4/d7/a6
-	lea		16(a7),a7
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d3-d4/d7/a6
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 	
 new_api_line:
-#ifdef COLDFIRE
-	lea		44(a7),a7
-	movem.l		d2-d7/a2-a6,(a7)
-#else
 	movem.l		d2-d7/a2-a6,-(a7)
-#endif
 
 	movem.l		11*4+4(a7),a0/a1
 	movem.l		drvline_x1(a1),d1-d5
@@ -413,21 +324,10 @@ new_api_line:
 	move.l		d2,-(a7)
 	move.l		d1,-(a7)
 	move.l		a0,-(a7)
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_line_draw_r])
-	.chip		5200
-#else
 	ijsr		_line_draw_r
-#endif
 	lea		32(a7),a7
   .endc
-#ifdef COLDFIRE
-	movem.l		(a7),d2-d7/a2-a6
-	lea		44(a7),a7
-#else
 	movem.l		(a7)+,d2-d7/a2-a6
-#endif
 	rts
 
 
@@ -444,12 +344,7 @@ new_api_line:
 *-------*/
 _c_expand:
 c_expand:
-#ifdef COLDFIRE
-	lea		-24(a7),a7
-	movem.l		d0-d2/a0-a2,(a7)
-#else
 	movem.l		d0-d2/a0-a2,-(a7)
-#endif
 	ext.l		d1
 	ext.l		d2
 
@@ -478,13 +373,7 @@ c_expand:
 	move.l		12(a0),-(a7)
 	move.l		(a0),-(a7)
 
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_expand_area_r])
-	.chip		5200
-#else
 	ijsr		_expand_area_r
-#endif
 	lea		44(a7),a7
 
 	tst.l		d0
@@ -493,12 +382,7 @@ c_expand:
 	bra		give_up
 
 .expand1:
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 
@@ -518,12 +402,7 @@ c_expand:
 *-------*/
 _c_fill:
 c_fill:
-#ifdef COLDFIRE
-	lea		-24(a7),a7
-	movem.l		d0-d2/a0-a2,(a7)
-#else
 	movem.l		d0-d2/a0-a2,-(a7)
-#endif
 
 //	ext.l		d1			// Perhaps these really should be extended when a0 even
 //	ext.l		d2
@@ -553,13 +432,7 @@ c_fill:
 	move.l		d1,-(a7)
 	move.l		a0,-(a7)
 
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_fill_area_r])
-	.chip		5200
-#else
 	ijsr		_fill_area_r
-#endif
 	tst.l		d0
 	lbgt		.fill1
 	lbmi		.fill2
@@ -569,12 +442,7 @@ c_fill:
 
 .fill1:
 	lea		36(sp),a7
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 .fill2:					// Transform table fill into ordinary one
@@ -599,26 +467,12 @@ c_fill:
 	addq.l		#1,d0
 	move.l		d0,12(a7)
 	move.l		a2,36+4(a7)
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_fill_area_r])
-	.chip		5200
-	move.w		36+8(a7),d0
-	subq.l		#1,d0
-	move.w		d0,36+8(a7)
-#else
 	ijsr		_fill_area_r
 	subq.w		#1,36+8(a7)
-#endif
 	bne		.fill_loop
 .fill_done:
 	lea		36(a7),a7
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 
@@ -639,12 +493,7 @@ c_fill:
 *-------*/
 _c_fillpoly:
 c_fillpoly:
-#ifdef COLDFIRE
-	lea		-24(a7),a7
-	movem.l		d0-d2/a0-a2,(a7)
-#else
 	movem.l		d0-d2/a0-a2,-(a7)
-#endif
 
 	move.l		d7,-(a7)
 	move.l		d6,-(a7)
@@ -665,13 +514,7 @@ c_fillpoly:
 	move.l		d1,-(a7)
 	move.l		a0,-(a7)
 
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_fill_poly_r])
-	.chip		5200
-#else
 	ijsr		_fill_poly_r
-#endif
 	tst.l		d0
 	lbgt		.fillpoly1
 
@@ -681,12 +524,7 @@ c_fillpoly:
 
 .fillpoly1:
 	lea		36(a7),a7
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 
@@ -702,12 +540,7 @@ c_fillpoly:
 *-------*/
 _c_blit:
 c_blit:
-#ifdef COLDFIRE
-	lea		-24(a7),a7
-	movem.l		d0-d2/a0-a2,(a7)
-#else
 	movem.l		d0-d2/a0-a2,-(a7)
-#endif
 
 	ext.l		d1
 	ext.l		d2
@@ -735,13 +568,7 @@ c_blit:
 	move.l		12(a0),-(a7)
 	move.l		(a0),-(a7)
 
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_blit_area_r])
-	.chip		5200
-#else
 	ijsr		_blit_area_r
-#endif
 	lea		40(a7),a7
 
 	tst.l		d0
@@ -750,12 +577,7 @@ c_blit:
 	bra		give_up
 
 .blit1:
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 
@@ -772,12 +594,7 @@ c_blit:
 *-------*/
 _c_text:
 c_text:
-#ifdef COLDFIRE
-	lea		-24(a7),a7
-	movem.l		d0-d2/a0-a2,(a7)
-#else
 	movem.l		d0-d2/a0-a2,-(a7)
-#endif
 
 	ext.l		d0
 	move.w		d1,d2
@@ -792,13 +609,7 @@ c_text:
 	move.l		a1,-(a7)
 	move.l		a0,-(a7)
 
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_text_area_r])
-	.chip		5200
-#else
 	ijsr		_text_area_r
-#endif
 	lea		24(a7),a7
 
 	tst.l		d0
@@ -807,12 +618,7 @@ c_text:
 	bra		give_up
 
 .text1:
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 
@@ -835,13 +641,7 @@ c_mouse:
 //	ext.l		d0
 	move.l		d0,-(a7)
 	move.l		a1,-(a7)
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_mouse_draw_r])
-	.chip		5200
-#else
 	ijsr		_mouse_draw_r
-#endif
 	lea		16(a7),a7
 
 	rts
@@ -859,19 +659,10 @@ c_mouse:
 *-------*/
 _c_set_palette:
 c_set_palette:
-#ifdef COLDFIRE
-	cmp.l		#0xc0de,d0
-#else
 	cmp.w		#0xc0de,d0
-#endif
 	beq		new_api_set_palette
 
-#ifdef COLDFIRE
-	lea		-24(a7),a7
-	movem.l		d0-d2/a0-a2,(a7)
-#else
 	movem.l		d0-d2/a0-a2,-(a7)
-#endif
 
 	move.l		a2,-(a7)
 	move.l		a1,-(a7)
@@ -883,30 +674,14 @@ c_set_palette:
 	move.l		d0,-(a7)
 	move.l		a0,-(a7)
 
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_set_colours_r])
-	.chip		5200
-#else
 	ijsr		_set_colours_r
-#endif
 	lea		20(a7),a7
 
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 new_api_set_palette:
-#ifdef COLDFIRE
-	lea		-24(a7),a7
-	movem.l		d0-d2/a0-a2,(a7)
-#else
 	movem.l		d0-d2/a0-a2,-(a7)
-#endif
 
 	move.l		6*4+4(a7),a0
 	move.l		6*4+8(a7),a1
@@ -915,20 +690,9 @@ new_api_set_palette:
 	move.l		drvpalette_count(a1),-(a7)
 	move.l		drvpalette_first_pen(a1),-(a7)
 	move.l		a0,-(a7)
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_set_colours_r])
-	.chip		5200
-#else
 	ijsr		_set_colours_r
-#endif
 	lea		20(a7),a7
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 
 
@@ -943,30 +707,14 @@ new_api_set_palette:
 *-------*/
 _c_colour:
 c_colour:
-#ifdef COLDFIRE
-	lea		-20(a7),a7
-	movem.l		d1-d2/a0-a2,(a7)
-#else
 	movem.l		d1-d2/a0-a2,-(a7)
-#endif
 	move.l		d0,-(a7)
 	move.l		a0,-(a7)
 
-#ifdef COLDFIRE
-	.chip		68060
-	jsr		([_get_colour_r])
-	.chip		5200
-#else
 	ijsr		_get_colour_r
-#endif
 	addq.l		#8,a7
 
-#ifdef COLDFIRE
-	movem.l		(a7),d1-d2/a0-a2
-	lea		20(a7),a7
-#else
 	movem.l		(a7)+,d1-d2/a0-a2
-#endif
 	rts
 
   .ifne	1
@@ -978,12 +726,7 @@ c_colour:
 * To be called from C
 *-------*/
 _c_initialize_palette:
-#ifdef COLDFIRE
-	move.l		_set_colours_r,-(a7)
-	rts
-#else
 	ijmp		_set_colours_r		// Exactly the same parameters
-#endif
   .endc
 
 /*---------
@@ -998,11 +741,6 @@ give_up:
 	movem.l	8(a7),d0-d2/a0-a2
 	rts
 .return:
-#ifdef COLDFIRE
-	movem.l		(a7),d0-d2/a0-a2
-	lea		24(a7),a7
-#else
 	movem.l		(a7)+,d0-d2/a0-a2
-#endif
 	rts
 

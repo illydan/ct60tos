@@ -21,12 +21,6 @@
 	.globl init_vectors
 	.globl _init_emulation_vectors
 	
-#ifdef COLDFIRE
-	.globl null
-
-#include "fire.h"
-#endif
-
 #include "ct60_hw.h"
 #include "vars.h"
 	
@@ -34,38 +28,13 @@ init_vectors:
 
 	cmp.l (A1)+,D2
 	bne.s next_vect
-#ifdef COLDFIRE
-	ext.l D0
-#endif
 	move.l A0,-4(A1)
 next_vect:
 	add.l D1,A0
-#ifdef COLDFIRE
-	subq.l #1,D0
-	bpl.s init_vectors
-#else
 	dbf D0,init_vectors
-#endif
 	
 _init_emulation_vectors:
 
-#ifdef COLDFIRE
-	move.l A0,-(SP)
-	move.l A1,-(SP)
-	lea 0,A1
-#if 1
-	lea FLASH_ADR,A0
-	move.l #0x4E714EF9,(A1)+ // JMP
-	move.l 4(A0),(A1)        // reset PC
-#else
-	move.l #0x4E714EF9,(A1)+ // JMP
-	lea null,A0           // for debug null pointer
-	move.l A0,(A1)
-#endif
-	move.l (SP)+,A1
-	move.l (SP)+,A0
-	rts
-#else /* ATARI */
 	movem.l D0/A0,-(SP)
 	lea.l _top_isp+0x80(PC),A0
 	cmp.l 0xF4,A0
@@ -343,4 +312,3 @@ _top_fpsp:
 	
 #include "../nonfree/fpsp.S"
 
-#endif // COLDFIRE

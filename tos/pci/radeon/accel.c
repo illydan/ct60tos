@@ -23,42 +23,12 @@
 #include "fb.h"
 #include "radeonfb.h"
 
-#ifdef COLDFIRE
-extern short SMUL_DIV(short x, short y, short z);
-#else
 #define SMUL_DIV(x,y,z)	((short)(((short)(x)*(long)((short)(y)))/(short)(z)))
-#endif
 
 #undef SEMAPHORE
 
 #ifdef DRIVER_IN_ROM
 #ifndef TEST_NOPCI
-
-#ifdef COLDFIRE
-#ifdef NETWORK
-
-#ifdef LWIP
-extern void xSemaphoreTakeRADEON(void);
-extern void xSemaphoreGiveRADEON(void);
-#undef SEMAPHORE
-#endif
-
-#ifdef MCF5445X
-#define int8 char
-#define int16 short
-#define int32 long
-#define uint8 unsigned char
-#define uint16 unsigned short
-#define uint32 unsigned long
-#define vuint8 volatile unsigned char
-#define vuint16 volatile unsigned short
-#define vuint32 volatile unsigned long
-#include "mcf5445x.h"
-#else /* MCF548X */
-#include "../mcdapi/MCD_dma.h"
-#endif /* MCF5445X */
-#endif /* NETWORK */
-#endif /* COLDFIRE */
 
 #include "../dma_utils/dma_utils.h"
 
@@ -228,21 +198,6 @@ static int check_table(short *table, int length)
 #endif /* TEST_NOPCI */
 
 #ifdef DRIVER_IN_ROM
-#ifdef COLDFIRE
-
-#ifndef NETWORK
-
-inline int dma_transfer(char *src, char *dest, int size, int width, int src_incr, int dest_incr, int step)
-{
-	if(src && dest && size && width && src_incr && dest_incr && step);
-	return(-1);
-}
-inline int dma_status(void) { return(-1); }
-inline void wait_dma(void) { }
-
-#endif /* NETWORK */
-
-#else /* !COLDFIRE */
 
 #ifdef TEST_NOPCI
 
@@ -256,7 +211,6 @@ inline void wait_dma(void) { }
 
 #endif /* TEST_NOPCI */
 
-#endif /* COLDFIRE */
 #endif /* DRIVER_IN_ROM */
 
 static void blit_copy_8(unsigned char *src_addr, int src_line_add, unsigned char *dst_addr, int dst_line_add, int w, int h)

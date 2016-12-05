@@ -8,12 +8,6 @@
 
 #define USE_SDRAM
 
-#ifdef COLDFIRE
-#ifndef PCI_XBIOS
-#define PCI_XBIOS // else sometimes system is locked ???
-#endif
-#endif
-
 #define MEM_WB(where, what) wrb(where, what)
 #define MEM_WW(where, what) wrw(where, what)
 #define MEM_WL(where, what) wrl(where, what)

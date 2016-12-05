@@ -21,10 +21,6 @@
 
 	.text
 
-#ifdef COLDFIRE
-	.chip	68060
-#endif
-	
 	.globl	menu_boot
 
 	.align	2
@@ -50,46 +46,3 @@ begin3:
 	.short	0x11
 end3:
 
-#ifdef COLDFIRE
-
-	.globl	error_unknow_device
-	.globl	error_ok
-
-	.align	2
-	.long	0x312
-	.long	end4-begin4
-begin4:
-	move.l	#error_unknow_device,hdv_rw
-end4:
-
-	.align	2
-	.long	0x31A
-	.long	end5-begin5
-begin5:
-	move.l	#error_ok,hdv_bpb
-end5:
-
-	.align	2
-	.long	0x322
-	.long	end6-begin6
-begin6:
-	move.l	#error_unknow_device,hdv_mediach
-end6:
-
-	.align	2
-	.long	0x30A
-	.long	end7-begin7
-begin7:
-	move.l	#error_unknow_device,hdv_init
-end7:
-
-	.align	2
-	.long	0x760
-	.long	end8-begin8
-begin8:	// FDC/HDC
-	nop
-	nop
-	nop
-end8:
-
-#endif

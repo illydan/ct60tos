@@ -24,102 +24,6 @@
 
 	.text
 
-#ifdef COLDFIRE
-
-#include "fire.h"
-
-	.globl	flush_caches_x
-	.globl	flush_caches_z
-	.globl	flush_caches
-	.globl	flush_data_cache
-	.globl	caches_disable
-	.globl	caches_enable
-
-	.align	2
-	.long	0x638
-	.long	end1-begin1
-begin1:
-	jsr	0xE250C8
-	nop
-	nop
-end1:
-
-	.align	2
-	.long	0x904
-	.long	end2-begin2
-begin2:
-	jsr	flush_caches_x
-	nop
-end2:
-
-	.align	2
-	.long	0x920
-	.long	end3-begin3
-begin3:
-	jsr	flush_caches_z
-	nop
-	nop
-	nop
-	nop
-end3:
-
-	.align	2
-	.long	0x946
-	.long	end4-begin4
-begin4:
-	jsr	flush_caches_x
-	nop
-end4:
-
-	.align	2
-	.long	0xDF4
-	.long	end5-begin5
-begin5:
-	jsr	flush_caches_x
-	nop
-end5:
-
-	.align	2
-	.long	0x43B0
-	.long	end6-begin6
-begin6:
-	jsr	flush_caches_x
-	clr.l	-(sp)
-end6:
-
-	.align	2
-	.long	0x46CA
-	.long	end7-begin7
-begin7:
-	jsr	flush_caches_x
-	nop
-end7:
-
-	.align	2
-	.long	0x85A
-	.long	end8-begin8
-begin8:
-	jmp	caches_disable
-end8:
-
-	.align	2
-	.long	0x18CA
-	.long	end9-begin9
-begin9:
-	jsr	flush_caches
-	bra.s	begin9-0x18CA+0x18DE
-end9:
-
-	.align	2
-	.long	0x1944
-	.long	end10-begin10
-begin10:
-	jsr	flush_data_cache
-	bra.s	begin10-0x18CA+0x18DE
-end10:
-
-#else	// 68060 
-
 	.align	2
 	.long	0x638
 	.long	end1-begin1
@@ -207,8 +111,6 @@ begin10:
 	bra.s	begin10-0x18CA+0x18DE
 end10:
 
-#endif  // COLDFIRE
-
 	.align	2
 	.long	0x3990
 	.long	end11-begin11
@@ -228,8 +130,6 @@ begin12:
 	nop
 	nop
 end12:
-
-#ifndef COLDFIRE
 
 	.align	2
 	.long	0x990C
@@ -262,8 +162,6 @@ code13:
 	nop
 	nop
 end13:
-
-#endif
 
 	.align	2
 	.long	0x11BCE
@@ -371,26 +269,6 @@ begin28:
 	rts
 end28:
 
-#ifdef COLDFIRE
-
-	.align	2
-	.long	0x44544
-	.long	end29-begin29
-begin29:
-	jsr	0xE250C8
-	bra.s	begin29-0x44544+0x44578
-end29:
-
-	.align	2
-	.long	0x4454E
-	.long	end30-begin30
-begin30:
-	jsr	0xE0085A
-	bra.s	begin30-0x4454E+0x44584
-end30:
-
-#else
-
 	.align	2
 	.long	0x44528
 	.long	end29-begin29
@@ -409,15 +287,8 @@ begin30:
 	bra.s	begin30-0x44544+0x44584
 end30:
 
-#endif
-
 	.align	2
 	.long	0x250C8
-#ifdef COLDFIRE
-	.long	end31-begin31
-begin31:
-	jmp	caches_enable
-#else
 	.long	end31-begin31
 begin31:
 	move.w	SR,-(SP)
@@ -427,17 +298,12 @@ begin31:
 	movec.l	D0,CACR
 	move.w	(SP)+,SR
 	rts
-#endif
 end31:
 
 	.align	2
 	.long	0x4456E
 	.long	end32-begin32
 begin32:
-#ifdef COLDFIRE
-	cmp.l	#CACHE_ENABLE_MODE,D0
-#else
 	cmp.l	#0xA0808000,D0
-#endif
 end32:
 

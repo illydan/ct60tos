@@ -2621,12 +2621,7 @@ int vixPlaybackCopyFrame(vidix_dma_t *dmai)
 		return(E2BIG);
 	if((dmai->flags & BM_DMA_SYNC) == BM_DMA_SYNC)
 		while(vixQueryDMAStatus() != 0);
-#ifdef COLDFIRE
-	/* flush data cache from the cf68klib */
-	asm(" .chip 68060\n cpusha DC\n .chip 5200\n");
-#else
 	asm(" cpusha DC\n");
-#endif
 
 //	n = dmai->size / 4096;
 //	if(dmai->size % 4096)

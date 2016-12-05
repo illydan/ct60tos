@@ -206,13 +206,7 @@ long install_xbra(short vector, void *handler)
 		xbra->ident = '_PCI';
 		xbra->jump[0] = 0x4EF9; /* JMP */
 		*(long *)&xbra->jump[1] = (long)handler;
-#ifdef COLDFIRE
-		asm("	.chip 68060");
-#endif
 		asm(" cpusha BC");
-#ifdef COLDFIRE
-		asm("	.chip 5200");
-#endif
 		xbra->old_address = (long)Setexc(vector,(void(*)())&xbra->jump[0]);
 		return(xbra->old_address);
 	}
@@ -341,21 +335,7 @@ int tftp_write_file(int drive, char *name, char *path_server, IP_ADDR server)
 
 void init_devices(void) /* after the original setscreen with the modecode from NVRAM */
 {
-#ifdef COLDFIRE
-#ifdef LWIP
-	extern void *run;
-	extern void *start_run;
-#endif
-	extern void osinit(void);
-	memset(_bss_start, 0, (int)(_end - _bss_start));
- 	*_membot = (long)_end;
-	osinit();        /* BDOS */
-#ifdef LWIP
-  start_run = run; /* PD for BDOS malloc */
-#endif
-#else /* 68060 - use GEMDOS */
 	memset(_bss_start, 0, (int)(_end-_bss_start));
-#endif /* COLDFIRE */
 	do
 	{
 		unsigned long temp;
@@ -529,7 +509,6 @@ void init_devices(void) /* after the original setscreen with the modecode from N
 				use_dma = (use_dma >> 1) & 1;
 			else
 				use_dma = 0;
-#ifndef COLDFIRE
 			if(use_dma)
 			{
 				Cconws("\rDMA (y/n)");
@@ -540,7 +519,6 @@ void init_devices(void) /* after the original setscreen with the modecode from N
 					Cconout('E');
 				}			
 			}
-#endif
 			Vsetscreen(0, 0, 3, vmode);
 			display_atari_logo();
 #ifndef TEST_NOPCI
